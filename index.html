@@ -1867,6 +1867,7 @@ window.copyPhoneModalMsg = async () => {
         const acc = getField(n, FIELD_ALIASES.Account_Riferimento);
         const tel = getField(n, FIELD_ALIASES.TELEFONO_1);
         const em = getField(n, FIELD_ALIASES.EMAIL_1);
+ const wa = tel ? whatsappHref(tel, buildMsg('WA', n)) : '';
         const label = `${num ?? ''} - ${nome ?? ''}`;
         return `
           <tr style="cursor:pointer;" onclick="document.getElementById('searchInput').value='${escapeHtml(label)}'; window.navigate('home'); setTimeout(()=>window.caricaSchedaNeo(), 50);">
@@ -1876,7 +1877,7 @@ window.copyPhoneModalMsg = async () => {
             <td>${escapeHtml(citta)}</td>
             <td>${escapeHtml(via)}</td>
             <td>${escapeHtml(acc)}</td>
-            <td>${tel ? `<button type="button" class="btn btn-link btn-sm p-0" onclick="event.stopPropagation(); window.openPhoneActions(encodeURIComponent(tel),'${n.firebaseKey}')"><i class="bi bi-telephone-fill"></i> ${escapeHtml(tel)}</button>` : `<span class="text-muted">N/D</span>`}</td>
+            <td>${tel ? `<div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-link btn-sm p-0" onclick="event.stopPropagation(); window.openPhoneActions(encodeURIComponent(tel),'${n.firebaseKey}')"><i class="bi bi-telephone-fill"></i> ${escapeHtml(tel)}</button>${wa ? `<a class="btn btn-link btn-sm p-0" style="color:#25D366;" href="${wa}" target="_blank" rel="noopener" title="WhatsApp" onclick="event.stopPropagation();"><i class="bi bi-whatsapp"></i></a>` : ``}</div>` : `<span class="text-muted">N/D</span>`}</td>
             <td>${escapeHtml(em)}</td>
           </tr>`;
       }).join('');
@@ -1939,7 +1940,10 @@ window.copyPhoneModalMsg = async () => {
                 <div class="pill-blue mb-1">${escapeHtml(nome)}</div>
                 <div class="text-primary small">${escapeHtml(citta)}${via ? ' - ' + escapeHtml(via) : ''}</div>
                 <div class="d-flex flex-column gap-1 mt-2" style="line-height:1.2;">
-                  ${cleanPhone(tel) ? `<a href="${escapeHtml(phoneHref(tel))}" class="text-decoration-none text-primary"><i class="bi bi-telephone-fill me-1"></i>${escapeHtml(cleanPhone(tel))}</a>` : `<span class="text-muted small"><i class="bi bi-telephone me-1"></i>Telefono: N/D</span>`}
+                  ${cleanPhone(tel) ? `<div class=\"d-flex align-items-center gap-2\">` +
+`<a href=\"${escapeHtml(phoneHref(tel))}\" class=\"text-decoration-none text-primary\"><i class=\"bi bi-telephone-fill me-1\"></i>${escapeHtml(cleanPhone(tel))}</a>` +
+`<a href=\"${escapeHtml(whatsappHref(tel, buildMsg('WA', neo)))}\" target=\"_blank\" rel=\"noopener\" class=\"text-decoration-none\" style=\"color:#25D366;\" title=\"WhatsApp\"><i class=\"bi bi-whatsapp\"></i></a>` +
+`</div>` : `<span class=\"text-muted small\"><i class=\"bi bi-telephone me-1\"></i>Telefono: N/D</span>`}
                   ${cleanEmail(em) ? `<a href="${escapeHtml(emailHref(em))}" class="text-decoration-none text-primary"><i class="bi bi-envelope-fill me-1"></i>${escapeHtml(cleanEmail(em))}</a>` : `<span class="text-muted small"><i class="bi bi-envelope me-1"></i>Email: N/D</span>`}
                 </div>
                 <div class="bg-light p-2 rounded border mt-2">
@@ -2095,6 +2099,7 @@ window.copyPhoneModalMsg = async () => {
         const nome = getField(it.neo, FIELD_ALIASES.COGNOME_E_NOME);
         const tel = (getField(it.neo, FIELD_ALIASES.TELEFONO_1) || getField(it.neo, FIELD_ALIASES.TELEFONO_2) || '').toString().trim();
         const em = (getField(it.neo, FIELD_ALIASES.EMAIL_1) || getField(it.neo, FIELD_ALIASES.EMAIL_2) || '').toString().trim();
+ const wa = tel ? whatsappHref(tel, buildMsg('WA', it.neo)) : '';
         const badge = it.kind==='overdue' ? '<span class="badge bg-danger">SCADUTO</span>' : (it.kind==='today' ? '<span class="badge bg-primary">OGGI</span>' : '<span class="badge bg-warning text-dark">MAI CONTATTATO</span>');
         const nextTxt = it.next ? fmtDT(it.next) : '';
         const lastTxt = it.last ? fmtDateIT(it.last.data_contatto) : '';
