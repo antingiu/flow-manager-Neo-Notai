@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow Manager Neo Notai - Secure Auth</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style>
+    body { background-color: #f4f6f9; overflow-x: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .app-container { display:flex; min-height:100vh; width:100%; }
+    .sidebar { background-color:#212529; color:#fff; display:flex; flex-direction:column; transition:all .3s; width:15%; min-width:220px; flex-shrink:0; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 15px; border-radius: 5px; margin-bottom: 5px; font-size:0.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color:#fff; background-color:#0d6efd; }
+    .sidebar .nav-link i { margin-right:10px; font-size:1.1rem; }
+    .main-content { flex-grow:1; padding:25px 25px 5px 25px; width:85%; overflow-y:hidden; height:100vh; display:flex; flex-direction:column; }
+
+    .mobile-nav { display:none; position:fixed; top:0; left:0; width:100%; height:60px; background:#212529; color:white; z-index:1055; padding:0 20px; align-items:center; justify-content:space-between; }
+
+    @media (max-width: 992px){
+      .sidebar { position:fixed; top:0; left:0; height:100vh; width:260px; z-index:1060; transform:translateX(-100%); box-shadow: 4px 0 15px rgba(0,0,0,0.5); }
+      .sidebar.show{ transform:translateX(0); }
+      .main-content{ width:100%; padding:70px 10px 10px 10px; overflow-y:auto; }
+      .overlay{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1050; }
+      .overlay.show{ display:block; }
+      .mobile-nav{ display:flex; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+      #mapContainer { height: 50vh !important; min-height: 350px; }
+      .excel-table th, .excel-table td { font-size:0.75rem; padding: 6px 8px; }
+    }
+
+    @media (max-width: 576px){ .login-box{ width:95%; padding:1.5rem; } }
+
+    .login-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column; }
+    .login-box { background:white; padding:2.5rem; border-radius:12px; width:400px; box-shadow:0 0 30px rgba(0,0,0,0.7); }
+
+    .excel-view-container{ overflow:auto; white-space:nowrap; border:1px solid #dee2e6; background:white; padding-bottom:5px; display:flex; flex-direction:column; height:100%; -webkit-overflow-scrolling:touch; }
+    .table-fix-height{ flex-grow:1; overflow:auto; }
+
+    .excel-table th, .excel-table td{ padding:8px 12px; border:1px solid #dee2e6; font-size:0.85rem; vertical-align:middle; }
+    .excel-table th{ background-color:#343a40; color:white; font-weight:bold; text-transform:uppercase; font-size:0.75rem; position:sticky; top:0; z-index:10; }
+    .header-filter{ width:100%; margin-top:5px; padding:2px 4px; font-size:0.7rem; border:1px solid #ced4da; border-radius:2px; color:#000; }
+
+    .editable-cell{ cursor:pointer; transition: background .2s; }
+    .editable-cell:hover{ background-color:#fff3cd; }
+    .editable-cell:focus{ background-color:#fff; outline:2px solid #0d6efd; padding:8px 12px; z-index:5; }
+
+    .view-section{ display:none; height: calc(100% - 30px); overflow-y:auto; padding-right:5px; }
+    .active-view{ display:block; }
+
+    .app-footer{ height:30px; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#6c757d; font-weight:500; }
+    #mapContainer{ z-index:1; border:1px solid #ddd; border-radius:4px; }
+
+    .checkbox-container{ max-height:120px; overflow-y:auto; border:1px solid #dee2e6; background:white; padding:5px; border-radius:4px; }
+
+    #criticalErrorAlert{ display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); width:90%; max-width:650px; z-index:10000; box-shadow:0 5px 15px rgba(0,0,0,0.3); }
+
+    .google-btn{ background-color:#DB4437; color:white; transition:.3s; }
+    .google-btn:hover{ background-color:#c53929; color:white; }
+
+    .pill-blue{ color:#0d6efd; font-weight:700; }
+    .small-muted{ font-size:0.8rem; color:#6c757d; }
+  </style>
+</head>
+<body>
+
+  <div id="criticalErrorAlert" class="alert alert-danger border-danger">
+    <h5 class="alert-heading fw-bold"><i class="bi bi-exclamation-octagon-fill"></i> Errore Critico Database</h5>
+    <p class="mb-0 small">Impossibile leggere i dati. Verifica la connessione o i permessi.</p>
+  </div>
+
+  <div class="modal fade" id="modalEditUser" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold"><i class="bi bi-person-gear"></i> Mappa Utente Auth</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formEditUser">
+            <input type="hidden" id="editUserKey" />
+            <div class="alert alert-info small">Incolla qui l'email usata per l'accesso Firebase per assegnare Ruoli e Account.</div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Email (Firebase Auth)</label>
+              <input type="text" id="editUserEmail" class="form-control" placeholder="nome.cognome@..." required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Nome Account (Visualizzato)</label>
+              <input type="text" id="editUserAcc" class="form-control" placeholder="Es. Rossi Mario" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Ruolo</label>
+              <select id="editUserRole" class="form-select">
+                <option value="USER">User (Standard)</option>
+                <option value="ADMIN">ADMIN (Completo)</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="button" class="btn btn-primary" onclick="window.saveUserAdmin()">Salva Mappatura</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-box">
+      <h3 class="text-center mb-4 fw-bold text-primary">Flow Manager Neo Notai</h3>
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" id="username" class="form-control" placeholder="nome@azienda.com" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Password" />
+      </div>
+      <div class="d-grid mb-3">
+        <button class="btn btn-primary btn-lg" onclick="window.appLogin()">Accedi con Email</button>
+      </div>
+      <div class="text-center mb-2"><span class="text-muted small">oppure</span></div>
+      <div class="d-grid mb-3">
+        <button class="btn google-btn btn-lg" onclick="window.loginGoogle()"><i class="bi bi-google"></i> Accedi con Google</button>
+      </div>
+      <div class="text-center mt-3 text-muted small">Accesso Riservato</div>
+      <div class="text-center mt-2 text-muted" style="font-size:0.75rem;">© • Neo Notai 2026</div>
+    </div>
+  </div>
+
+  <div class="mobile-nav">
+    <span class="fw-bold">Flow Manager Neo Notai</span>
+    <button class="btn btn-outline-light btn-sm" onclick="window.toggleSidebar()"><i class="bi bi-list"></i> Menu</button>
+  </div>
+  <div id="sidebarOverlay" class="overlay" onclick="window.toggleSidebar()"></div>
+
+  <div id="mainApp" class="app-container" style="display:none !important;">
+    <nav id="sidebar" class="sidebar p-3">
+      <div class="mb-4 d-none d-lg-block">
+        <h5 class="text-white mb-0">Flow Manager Neo Notai</h5>
+        <small class="text-muted">Wolters Kluwer</small>
+      </div>
+
+      <div class="mb-4 pb-3 border-bottom border-secondary">
+        <div class="d-flex align-items-center text-white text-decoration-none">
+          <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px;height:35px;">
+            <i class="bi bi-person-fill"></i>
+          </div>
+          <div style="overflow:hidden;">
+            <div class="fw-bold text-truncate" id="userDisplay" style="font-size:0.85rem;">Utente</div>
+            <small class="text-muted" id="userEmailDisplay" style="font-size:0.7rem;"></small>
+          </div>
+        </div>
+      </div>
+
+      <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item"><a class="nav-link active" id="nav-home" onclick="window.navigate('home')"><i class="bi bi-person-vcard"></i> Scheda Neo Notaio</a></li>
+      <li><a class="nav-link" id="nav-oggi" onclick="window.navigate('oggi')"><i class="bi bi-calendar2-check"></i> Oggi</a></li>
+        <li><a class="nav-link" id="nav-contatti" onclick="window.navigate('contatti')"><i class="bi bi-telephone"></i> Registro Contatti</a></li>
+        <li><a class="nav-link" id="nav-elenco" onclick="window.navigate('elenco')"><i class="bi bi-people"></i> Elenco Neo Notai</a></li>
+        <li><a class="nav-link" id="nav-statistiche" onclick="window.navigate('statistiche')"><i class="bi bi-geo-alt-fill"></i> Statistiche Mappa</a></li>
+
+        <li class="mt-4 border-top border-secondary pt-2" id="nav-item-strumenti" style="display:none;">
+          <a class="nav-link text-warning" id="nav-strumenti" onclick="window.navigate('strumenti')"><i class="bi bi-database-gear"></i> Strumenti DB</a>
+        </li>
+      </ul>
+
+      <div class="mt-auto pt-3 border-top border-secondary">
+        <button class="btn btn-outline-danger w-100 btn-sm" onclick="window.appLogout()"><i class="bi bi-box-arrow-left"></i> Esci</button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+
+      <div id="view-home" class="view-section active-view">
+        <h3 class="mb-4">Scheda Neo Notaio</h3>
+
+        <div class="card mb-4 border-primary shadow-sm">
+          <div class="card-body bg-light">
+            <div class="row align-items-end">
+              <div class="col-md-8 col-12 mb-2">
+                <label class="form-label fw-bold text-primary">CERCA NEO NOTAIO</label>
+                <div class="input-group">
+                  <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                  <input type="text" list="neoListOptions" id="searchInput" class="form-control form-control-lg" placeholder="Digita Num. o Cognome e Nome..." onchange="window.caricaSchedaNeo()" />
+                  <datalist id="neoListOptions"></datalist>
+                </div>
+                <div class="small-muted mt-1">Ricerca sulla tabella <b>Neo Notai</b>.</div>
+              </div>
+              <div class="col-md-4 col-12 mt-2 mt-md-0">
+                <button class="btn btn-primary btn-lg w-100" onclick="window.caricaSchedaNeo()">Carica Scheda</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4 shadow-sm" id="cardSchedaNeo" style="display:none;">
+          <div class="card-header bg-primary text-white fw-bold">SCHEDA NEO NOTAIO</div>
+          <div class="card-body p-0">
+            <div class="excel-view-container">
+              <table class="table mb-0 excel-table" id="tabellaSchedaNeo"></table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4 shadow border-success" id="cardAggiornaContatto" style="display:none;">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="bi bi-pencil-square"></i> DATI CONTATTO DA AGGIORNARE</span>
+            <span class="small">Aggiornamento diretto su tabella <b>Neo Notai</b></span>
+          </div>
+          <div class="card-body bg-light">
+            <form id="formUpdateNeo" onsubmit="event.preventDefault(); window.salvaAggiornamentiNeo();">
+              <input type="hidden" id="neoKey" />
+              <div class="row g-2">
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">CENTRO_DESTINAZIONE</label>
+                  <input type="text" id="f_CENTRO_DESTINAZIONE" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">Centro_Partenza</label>
+                  <input type="text" id="f_Centro_Partenza" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">Account_Riferimento</label>
+                  <input type="text" id="f_Account_Riferimento" class="form-control form-control-sm" list="listAccounts" />
+                  <datalist id="listAccounts"></datalist>
+                </div>
+
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Account_zona</label>
+                  <input type="text" id="f_Account_zona" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Data_orale</label>
+                  <input type="date" id="f_Data_orale" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">città_dove_si_trova</label>
+                  <input type="text" id="f_città_dove_si_trova" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">REGIONE</label>
+                  <input type="text" id="f_REGIONE" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-6 col-12">
+                  <label class="small fw-bold">Via_dove_si_trova</label>
+                  <input type="text" id="f_Via_dove_si_trova" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-6 col-12">
+                  <label class="small fw-bold">PRESSO_STUDIO_NOTARILE</label>
+                  <input type="text" id="f_PRESSO_STUDIO_NOTARILE" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">SOFTWARE_in_uso</label>
+                  <input type="text" id="f_SOFTWARE_in_uso" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">SEDE_PREFERITA</label>
+                  <input type="text" id="f_SEDE_PREFERITA" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">ORIENTAMENTO</label>
+                  <input type="text" id="f_ORIENTAMENTO" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">TELEFONO_1</label>
+                  <input type="text" id="f_TELEFONO_1" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">TELEFONO_2</label>
+                  <input type="text" id="f_TELEFONO_2" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">E-MAIL_1</label>
+                  <input type="email" id="f_E_MAIL_1" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">E-MAIL_2</label>
+                  <input type="email" id="f_E_MAIL_2" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-6 col-12">
+                  <label class="small fw-bold">Contatto_LINKEDIN</label>
+                  <input type="url" id="f_Contatto_LINKEDIN" class="form-control form-control-sm" placeholder="https://..." />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">ISCRIZIONE_SITO_NEONOTAI</label>
+                  <input type="text" id="f_ISCRIZIONE_SITO_NEONOTAI" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">ISCRIZIONE_NOTAIONEXT_DAY</label>
+                  <input type="text" id="f_ISCRIZIONE_NOTAIONEXT_DAY" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">COLLEGATO_AL_NOTAIONEXT_DAY</label>
+                  <input type="text" id="f_COLLEGATO_AL_NOTAIONEXT_DAY" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">ISCRIZION_TAPPE_LIVE_TOUR</label>
+                  <input type="text" id="f_ISCRIZION_TAPPE_LIVE_TOUR" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">PARTECIPAZIONE_LIVE_TOUR</label>
+                  <input type="text" id="f_PARTECIPAZIONE_LIVE_TOUR" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">POSSIBILE_TESTIMONIAL</label>
+                  <input type="text" id="f_POSSIBILE_TESTIMONIAL" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">Notai_in_contatto</label>
+                  <input type="text" id="f_Notai_in_contatto" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">%_scelta_OASISTEMI</label>
+                  <input type="number" id="f__perc_scelta_OASISTEMI" class="form-control form-control-sm" min="0" max="100" step="1" />
+                </div>
+
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">Ordine_in_Area_Partner_SI-NO</label>
+                  <input type="text" id="f_Ordine_in_Area_Partner" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">SW_SCELTO</label>
+                  <input type="text" id="f_SW_SCELTO" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">AREA_NNX_APERTA_SI-NO</label>
+                  <input type="text" id="f_AREA_NNX_APERTA" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-4 col-12">
+                  <label class="small fw-bold">SEDE_ASSEGNATA</label>
+                  <input type="text" id="f_SEDE_ASSEGNATA" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-8 col-12">
+                  <label class="small fw-bold">MOTIVO_NON_SCELTO_NNX</label>
+                  <input type="text" id="f_MOTIVO_NON_SCELTO_NNX" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-12 mt-2">
+                  <button type="submit" class="btn btn-success w-100 fw-bold shadow"><i class="bi bi-save"></i> SALVA AGGIORNAMENTI</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mb-4" id="cardContattiNeo" style="display:none;">
+          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="bi bi-telephone"></i> ATTIVITÀ / CONTATTI</span>
+            <span class="small">Salvati in tabella <b>Contatti</b></span>
+          </div>
+          <div class="card-body bg-light">
+            <form id="formContatto" onsubmit="event.preventDefault(); window.salvaContattoNeo();">
+              <input type="hidden" id="contattoNeoKey" />
+              <div class="row g-2">
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Data inserimento lead (auto)</label>
+                  <input type="text" id="leadInsertedAt" class="form-control form-control-sm" readonly style="background-color:#e9ecef;" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Data contatto</label>
+                  <input type="date" id="dataContatto" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Nome account (auto)</label>
+                  <input type="text" id="nomeAccount" class="form-control form-control-sm" readonly style="background-color:#e9ecef;" />
+                </div>
+                <div class="col-md-3 col-12">
+                  <label class="small fw-bold">Prossima azione</label>
+            <div class="row g-2">
+              <div class="col-6">
+                <select id="nextActionType" class="form-select form-select-sm">
+                  <option value="TASK" selected>Task (follow-up)</option>
+                  <option value="MEETING">Meeting (calendario)</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="createTaskIcs" checked>
+                  <label class="form-check-label small" for="createTaskIcs">Crea task (.ics)</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="createMeetingIcs" checked>
+                  <label class="form-check-label small" for="createMeetingIcs">Crea evento (.ics)</label>
+                </div>
+              </div>
+            </div>
+            <input type="datetime-local" id="nextContatto" class="form-control form-control-sm mt-2" />
+                  
+                  <div class="form-text small">Se valorizzato, verranno generati file <b>.ics</b> per <b>Task</b> e/o <b>Calendario</b> (in base alle opzioni).</div>
+                </div>
+
+                <div class="col-12">
+                  
+        <div class="col-12">
+          <label class="small fw-bold">Esito rapido</label>
+          <div class="d-flex flex-wrap gap-2" id="quickOutcomeBar">
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="window.setOutcome('RAGGIUNTO')"><i class="bi bi-check2-circle"></i> Raggiunto</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.setOutcome('NON_RISPONDE')"><i class="bi bi-telephone-x"></i> Non risponde</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.setOutcome('EMAIL_INVIATA')"><i class="bi bi-envelope"></i> Email inviata</button>
+            <button type="button" class="btn btn-sm btn-outline-warning" onclick="window.setOutcome('RICHIAMARE')"><i class="bi bi-arrow-repeat"></i> Richiamare</button>
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="window.setOutcome('APPUNTAMENTO')"><i class="bi bi-calendar-event"></i> Appuntamento</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="window.setOutcome('PERSO')"><i class="bi bi-x-octagon"></i> Perso</button>
+          </div>
+          <input type="hidden" id="esitoRapido" />
+          <div class="form-text small">Tocca un esito: precompila note e suggerisce la Next Action.</div>
+        </div>
+
+<div class="d-flex justify-content-between align-items-center">
+  <label class="small fw-bold mb-0">Feedback del Neo Notaio</label>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.startDictation()"><i class="bi bi-mic"></i> Dettatura</button>
+</div>
+                  <textarea id="feedbackNeo" class="form-control form-control-sm" rows="3" placeholder="Inserisci esito, note, prossimi step..." required></textarea>
+                </div>
+
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-plus-circle"></i> REGISTRA CONTATTO</button>
+                </div>
+              </div>
+            </form>
+
+            <hr />
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-bold">Storico contatti (ordine cronologico)</div>
+              <button class="btn btn-outline-secondary btn-sm" onclick="window.refreshStoricoContatti()"><i class="bi bi-arrow-clockwise"></i> Aggiorna</button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Inserimento</th>
+                    <th>Data contatto</th>
+                    <th>Account</th>
+                    <th>Feedback</th>
+                    <th>Prossimo contatto</th>
+                    <th>Az.</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyStoricoContatti"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+    <div id="view-oggi" class="view-section">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0"><i class="bi bi-calendar2-check"></i> Oggi / Scaduti</h3>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" onclick="window.renderTodayView()"><i class="bi bi-arrow-clockwise"></i> Aggiorna</button>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-4 col-12">
+          <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold">RIEPILOGO</div>
+            <div class="card-body">
+              <div class="d-flex justify-content-between"><span>Da fare oggi</span><span id="kpiToday" class="fw-bold text-primary">0</span></div>
+              <div class="d-flex justify-content-between"><span>Scaduti</span><span id="kpiOverdue" class="fw-bold text-danger">0</span></div>
+              <div class="d-flex justify-content-between"><span>Mai contattati</span><span id="kpiNever" class="fw-bold text-warning">0</span></div>
+              <hr/>
+              <div class="small text-muted">Lista operativa calcolata sul tuo perimetro (Account) oppure completa se ADMIN.</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-8 col-12">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white fw-bold">LISTA OPERATIVA</div>
+            <div class="card-body p-2">
+  <input type="text" id="todayFilter" class="form-control form-control-sm mb-2" placeholder="Filtra per nome o numero..." onkeyup="window.renderTodayView()" />
+  <div class="small text-muted mb-2">Suggerimento: digita per filtrare rapidamente la lista.</div>
+  <div id="todayList" style="max-height:70vh; overflow:auto;"></div>
+</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<div id="view-contatti" class="view-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="mb-0">Registro Contatti</h3>
+          <div class="small text-muted">Filtra e consulta tutte le attività (admin) o le tue (user).</div>
+        </div>
+
+        <div class="card shadow-sm h-100">
+          <div class="card-body p-0 h-100 d-flex flex-column">
+            <div class="excel-view-container table-fix-height">
+              <table class="table mb-0 excel-table table-hover" id="tabellaContattiReal">
+                <thead id="theadContatti"></thead>
+                <tbody id="tbodyContatti"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-elenco" class="view-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="mb-0">Elenco Neo Notai</h3>
+        </div>
+        <div class="card shadow-sm h-100">
+          <div class="card-body p-0 h-100 d-flex flex-column">
+            <div class="excel-view-container table-fix-height">
+              <table class="table mb-0 excel-table table-hover" id="tabellaNeoReal">
+                <thead id="theadNeo"></thead>
+                <tbody id="tbodyNeo"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-statistiche" class="view-section">
+        <h3 class="mb-4"><i class="bi bi-map"></i> Statistiche Mappa - Neo Notai</h3>
+
+        <div class="card shadow-sm mb-3">
+          <div class="card-header bg-dark text-white fw-bold">FILTRI</div>
+          <div class="card-body bg-light">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-bold small">ACCOUNT (operatore)</label>
+                <select id="filterMapAccount" class="form-select"></select>
+              </div>
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-bold small">REGIONE</label>
+                <select id="filterMapRegione" class="form-select"></select>
+              </div>
+              <div class="col-md-4 col-12">
+                <button class="btn btn-primary w-100 fw-bold py-3" onclick="window.aggiornaMappa()"><i class="bi bi-search"></i> CALCOLA</button>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-12">
+                <div class="small text-muted">Geolocalizzazione da: <b>città_dove_si_trova</b> + <b>Via_dove_si_trova</b>.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow h-100">
+          <div class="card-body p-0">
+            <div id="mapContainer" style="height:600px; width:100%;"></div>
+          </div>
+          <div class="card-footer small text-muted">Risultati trovati: <span id="mapResultCount" class="fw-bold text-primary">0</span>.</div>
+        </div>
+      </div>
+
+      <div id="view-strumenti" class="view-section">
+        <h3 class="mb-4 text-warning"><i class="bi bi-tools"></i> Strumenti Amministratore</h3>
+
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card shadow border-dark">
+              <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-people-fill"></i> GESTIONE UTENTI (DATABASE)</span>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-warning fw-bold" onclick="window.seedGiuseppeAdmin()"><i class="bi bi-shield-lock-fill"></i> Abilita ADMIN Giuseppe Savino</button>
+                  <button class="btn btn-sm btn-light fw-bold" onclick="window.newUserAdmin()"><i class="bi bi-plus-lg"></i> AGGIUNGI UTENTE</button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive" style="max-height:250px;">
+                  <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Azioni</th>
+                        <th>Email (Auth)</th>
+                        <th>Account Name</th>
+                        <th>Ruolo</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyUsersAdmin"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 col-12 mb-3">
+            <div class="card shadow h-100 border-primary">
+              <div class="card-header bg-primary text-white fw-bold">NEO NOTAI</div>
+              <div class="card-body">
+                <div class="input-group mb-2">
+                  <input type="file" class="form-control" id="fileNeo" accept=".xlsx,.xls" />
+                  <button class="btn btn-success" onclick="window.importExcel('fileNeo','neo_notai')"><i class="bi bi-upload"></i></button>
+                </div>
+                <button class="btn btn-warning w-100 mb-2" onclick="window.exportExcel('neo_notai')"><i class="bi bi-download"></i> Backup Excel</button>
+                <button class="btn btn-outline-danger w-100" onclick="window.clearTable('neo_notai')"><i class="bi bi-trash"></i> Svuota</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-12 mb-3">
+            <div class="card shadow h-100 border-secondary">
+              <div class="card-header bg-secondary text-white fw-bold">CONTATTI</div>
+              <div class="card-body">
+                <div class="input-group mb-2">
+                  <input type="file" class="form-control" id="fileContatti" accept=".xlsx,.xls" />
+                  <button class="btn btn-success" onclick="window.importExcel('fileContatti','contatti')"><i class="bi bi-upload"></i></button>
+                </div>
+                <button class="btn btn-warning w-100 mb-2" onclick="window.exportExcel('contatti')"><i class="bi bi-download"></i> Backup Excel</button>
+                <button class="btn btn-outline-danger w-100" onclick="window.clearTable('contatti')"><i class="bi bi-trash"></i> Svuota</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mt-4" id="dbStatus">Connessione...</div>
+      </div>
+
+      <div class="app-footer">© • Neo Notai 2026</div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import { getDatabase, ref, set, update, remove, onValue, push } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+    const firebaseConfig = {
+  apiKey: "AIzaSyAUBdCbb65uD1Izb7SI31LEA3ics8ufE-8",
+  authDomain: "flow-manager-neo-notai.firebaseapp.com",
+  databaseURL: "https://flow-manager-neo-notai-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "flow-manager-neo-notai",
+  storageBucket: "flow-manager-neo-notai.firebasestorage.app",
+  messagingSenderId: "224908805804",
+  appId: "1:224908805804:web:0fa7b1be26ab1f44c24109",
+  measurementId: "G-PDPXMP0QZ8"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let globalNeoNotai = [];
+    let globalContatti = [];
+    let globalUsers = {};// mappature utenti
+    let usersLoaded = false;
+    let pendingAuthUser = null;
+
+    let neoView = [];
+    let contattiView = [];
+
+    let mapInstance = null;
+    let markersGroup = null;
+
+    let currentUserEmail = "";
+    let currentAccountName = "";
+    let currentUserRole = "";
+    let currentAccountKeys = new Set();
+
+    const _base = (s) => (s ?? "").toString().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/["'`’]/g, '')
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+    const _nameTokens = (s) => _base(s).split(' ').filter(Boolean);
+
+    const accountKey = (name) => {
+      const t = _nameTokens(name);
+      if(t.length===0) return '';
+      if(t.length===1) return t[0];
+      const a=t[0], b=t[t.length-1];
+      return [a,b].sort().join('_');
+    };
+
+    const accountFromEmail = (email) => {
+      const local=(email ?? '').split('@')[0];
+      const parts = local.split(/[._-]+/).filter(Boolean);
+      if(parts.length>=2){
+        const nome=_base(parts[0]);
+        const cognome=_base(parts[1]);
+        return `${cognome} ${nome}`.trim();
+      }
+      return _base(local);
+    };
+
+    const isCurrentAdmin = () => currentUserRole === 'ADMIN';
+
+    const SHARED_VIEW_ACCOUNTS = ['FEDERICO ROSSI', 'MANUEL MANCHI', 'GIOVANNI VITTI', 'FEDELE LASSANDRO'];
+    const isSharedViewUser = () => SHARED_VIEW_ACCOUNTS.includes(_base(currentAccountName ?? ''));
+
+    const USER_POLICIES = {
+      "maura.capitanio@wolterskluwer.com": {
+        accounts: ["BRUGNONE - CAPITANIO", "MITRO - CAPITANIO", "POZZOLI - CAPITANIO"],
+        can: { view: true, update: true, insert: true, del: true }
+      },
+      "federico.brugnone@wolterskluwer.com": {
+        accounts: ["FEDERICO BRUGNONE", "BRUGNONE - CAPITANIO"],
+        can: { view: true, update: true, insert: true, del: true }
+      },
+      "matteo.pozzoli@wolterskluwer.com": {
+        accounts: ["MATTEO POZZOLI", "POZZOLI - CAPITANIO"],
+        can: { view: true, update: true, insert: true, del: true }
+      },
+      "s.mitro@wolterskluwer.com": {
+        accounts: ["SILVIO MITRO", "MITRO - CAPITANIO"],
+        can: { view: true, update: true, insert: true, del: true }
+      }
+    };
+
+    const getCurrentPolicy = () => USER_POLICIES[(currentUserEmail ?? '').toLowerCase()] ?? null;
+    const userCan = (perm) => {
+      if (isCurrentAdmin()) return true;
+      const p = getCurrentPolicy();
+      if (!p) return true;
+      return !!(p.can && p.can[perm]);
+    };
+
+    const addAccountToKeySet = (name) => {
+      if(!name) return;
+      const k1 = accountKey(name);
+      if(k1) currentAccountKeys.add(k1);
+      const t = _nameTokens(name);
+      if(t.length>=2){
+        const inv = `${t[t.length-1]} ${t.slice(0,-1).join(' ')}`.trim();
+        const k2 = accountKey(inv);
+        if(k2) currentAccountKeys.add(k2);
+      }
+    };
+
+    const buildCurrentAccountKeys = () => {
+      currentAccountKeys = new Set();
+      const p = getCurrentPolicy();
+      if(p && Array.isArray(p.accounts) && p.accounts.length>0){
+        p.accounts.forEach(addAccountToKeySet);
+        return;
+      }
+      if(isSharedViewUser()) SHARED_VIEW_ACCOUNTS.forEach(addAccountToKeySet);
+      if(currentAccountName) addAccountToKeySet(currentAccountName);
+      if(currentUserEmail) addAccountToKeySet(accountFromEmail(currentUserEmail));
+    };
+
+    const FIELD_ALIASES = {
+      num: ['num.', 'num', 'NUM.', 'NUM'],
+      Graduatoria_finale: ['Graduatoria_finale', 'GRADUATORIA_FINALE'],
+      COGNOME_E_NOME: ['COGNOME_E_NOME', 'COGNOME E NOME', 'COGNOME_E_NOME\r', 'COGNOME_E_NOME\n'],
+      LUOGO_NASCITA: ['LUOGO_NASCITA','LUOGO NASCITA'],
+      DATA_NASCITA: ['DATA_NASCITA','DATA NASCITA'],
+      citta: ['città_dove_si_trova','citta_dove_si_trova','CITTA_DOVE_SI_TROVA','CITTÀ_DOVE_SI_TROVA'],
+      via: ['Via_dove_si_trova','VIA_DOVE_SI_TROVA','via_dove_si_trova'],
+      REGIONE: ['REGIONE','Regione'],
+      CENTRO_DESTINAZIONE: ['CENTRO_DESTINAZIONE','ENTRO_DESTINAZIONE','CENTRO DESTINAZIONE'],
+      Centro_Partenza: ['Centro_Partenza','CENTRO_PARTENZA','Centro Partenza'],
+      Account_Riferimento: ['Account_Riferimento','ACCOUNT_RIFERIMENTO','Account Riferimento'],
+      Account_zona: ['Account_zona','ACCOUNT_ZONA','Account zona'],
+      Data_orale: ['Data_orale','DATA_ORALE','Data orale'],
+      PRESSO_STUDIO_NOTARILE: ['PRESSO_STUDIO_NOTARILE','PRESSO STUDIO NOTARILE'],
+      SOFTWARE_in_uso: ['SOFTWARE_in_uso','SOFTWARE IN USO','SOFTWARE_IN_USO'],
+      SEDE_PREFERITA: ['SEDE_PREFERITA','SEDE PREFERITA'],
+      TELEFONO_1: ['TELEFONO_1','TELEFONO 1'],
+      TELEFONO_2: ['TELEFONO_2','TELEFONO 2'],
+      EMAIL_1: ['E-MAIL_1','E_MAIL_1','EMAIL_1','E-MAIL 1'],
+      EMAIL_2: ['E-MAIL_2','E_MAIL_2','EMAIL_2','E-MAIL 2'],
+      Contatto_LINKEDIN: ['Contatto_LINKEDIN','CONTATTO_LINKEDIN','Contatto LINKEDIN'],
+      ISCRIZIONE_SITO_NEONOTAI: ['ISCRIZIONE_ SITO_NEONOTAI','ISCRIZIONE_SITO_NEONOTAI','ISCRIZIONE  SITO_NEONOTAI'],
+      ISCRIZIONE_NOTAIONEXT_DAY: ['ISCRIZIONE_NOTAIONEXT_DAY','ISCRIZIONE NOTAIONEXT DAY'],
+      COLLEGATO_AL_NOTAIONEXT_DAY: ['COLLEGATO_AL_NOTAIONEXT_DAY','COLLEGATO AL NOTAIONEXT DAY'],
+      ISCRIZION_TAPPE_LIVE_TOUR: ['ISCRIZION_TAPPE_ LIVE_TOUR','ISCRIZION_TAPPE_LIVE_TOUR','ISCRIZIONE_TAPPE_LIVE_TOUR'],
+      PARTECIPAZIONE_LIVE_TOUR: ['PARTECIPAZIONE_LIVE_TOUR','PARTECIPAZIONE LIVE TOUR'],
+      POSSIBILE_TESTIMONIAL: ['POSSIBILE_TESTIMONIAL','POSSIBILE TESTIMONIAL'],
+      Notai_in_contatto: ['Notai_in_contatto','NOTAI_IN_CONTATTO'],
+      perc_scelta_OASISTEMI: ['%_scelta_OASISTEMI','% scelta OASISTEMI','PERC_SCELTA_OASISTEMI'],
+      ORIENTAMENTO: ['ORIENTAMENTO'],
+      Ordine_in_Area_Partner: ['Ordine_in_Area_Partner_SI-NO','Ordine_in_Area_Partner_SI/NO','ORDINE_IN_AREA_PARTNER_SI-NO'],
+      SW_SCELTO: ['SW_SCELTO','SW SCELTO'],
+      AREA_NNX_APERTA: ['AREA_ NNX_APERTA_SI-NO','AREA_NNX_APERTA_SI-NO','AREA NNX APERTA SI-NO'],
+      SEDE_ASSEGNATA: ['SEDE_ASSEGNATA','SEDE ASSEGNATA'],
+      MOTIVO_NON_SCELTO_NNX: ['MOTIVO_NON_SCELTO_NNX','MOTIVO NON SCELTO NNX'],
+    };
+
+    const normalizeKey = (k) => (k ?? '').toString().trim().replace(/\r|\n/g,'');
+    const getField = (obj, aliases) => {
+      if(!obj || !aliases) return '';
+      for(const a of aliases){
+        if(Object.prototype.hasOwnProperty.call(obj, a)) return obj[a];
+        const keys = Object.keys(obj);
+        const found = keys.find(k => normalizeKey(k) === normalizeKey(a));
+        if(found) return obj[found];
+      }
+      return '';
+    };
+
+    const setFieldPatch = (obj, aliasList, value) => {
+      const k = (aliasList && aliasList.length) ? aliasList[0] : null;
+      if(!k) return null;
+      obj[k] = value;
+      return k;
+    };
+
+    const escapeHtml = (unsafe) => (unsafe ?? '').toString().replace(/[&<>\"'`=\\/]/g, (c) => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;', '`':'&#96;', '=':'&#61;', '/':'&#47;', '\\':'&#92;'
+    }[c]));
+
+    const cleanPhone = (p) => (p ?? '').toString().trim();
+    const phoneHref = (p) => {
+      const digits = cleanPhone(p).replace(/[^0-9+]/g,'');
+      return digits ? `tel:${digits}` : '';
+    };
+    const cleanEmail = (e) => (e ?? '').toString().trim();
+    const emailHref = (e) => {
+      const em = cleanEmail(e);
+      return em ? `mailto:${encodeURIComponent(em)}` : '';
+    };
+
+  // ===== WhatsApp: template per Account + messaggio personalizzato per Neo Notaio =====
+  const DEFAULT_WA_TEMPLATE = "Ciao {NOME}, sono {ACCOUNT}. Ti contatto in merito al percorso Neo Notai (rif. {NUM}). Possiamo sentirci?";
+
+  const getWATemplateForCurrentUser = () => {
+    const email = (currentUserEmail || '').toLowerCase();
+    // priorità: tabella users (campo wa_template)
+    const k = Object.keys(globalUsers || {}).find(x => ((globalUsers[x].u || '').toLowerCase() === email));
+    if(k && globalUsers[k] && globalUsers[k].wa_template) return String(globalUsers[k].wa_template);
+    return DEFAULT_WA_TEMPLATE;
+  };
+
+  const applyTemplate = (tpl, data) => {
+    return (tpl || '').replace(/\{(NOME|NUM|REGIONE|CITTA|ACCOUNT)\}/g, (m, p1) => {
+      return (data[p1] ?? '').toString();
+    });
+  };
+
+  const whatsappHref = (phone, message) => {
+    const digits = cleanPhone(phone).replace(/[^0-9]/g,'');
+    if(!digits) return '';
+    const txt = encodeURIComponent(message || '');
+    return `https://wa.me/${digits}?text=${txt}`;
+  };
+
+  window.openPhoneActions = (telEncoded, neoKey) => {
+    const tel = decodeURIComponent(telEncoded || '').toString();
+    const neo = (neoView || []).find(n => n.firebaseKey === neoKey) || (globalNeoNotai || []).find(n => n.firebaseKey === neoKey) || null;
+    const nome = neo ? (getField(neo, FIELD_ALIASES.COGNOME_E_NOME) || '') : '';
+    const num = neo ? (getField(neo, FIELD_ALIASES.num) || '') : '';
+    const reg = neo ? (getField(neo, FIELD_ALIASES.REGIONE) || '') : '';
+    const citta = neo ? (getField(neo, FIELD_ALIASES.citta) || '') : '';
+    const account = _base(currentAccountName || accountFromEmail(currentUserEmail));
+
+    const tpl = getWATemplateForCurrentUser();
+    const msg = applyTemplate(tpl, {
+      NOME: (nome || '').toString(),
+      NUM: (num || '').toString(),
+      REGIONE: (reg || '').toString(),
+      CITTA: (citta || '').toString(),
+      ACCOUNT: (account || '').toString()
+    }).trim();
+
+    const call = phoneHref(tel);
+    const wa = whatsappHref(tel, msg);
+
+    const nameEl = document.getElementById('phoneModalNeoName');
+    const phoneEl = document.getElementById('phoneModalPhone');
+    const btnCall = document.getElementById('btnCallNow');
+    const btnWa = document.getElementById('btnWhatsApp');
+
+    if(nameEl) nameEl.textContent = nome ? `${nome}` : 'Neo Notaio';
+    if(phoneEl) phoneEl.textContent = tel ? `Tel: ${tel}` : 'Telefono non disponibile';
+    if(btnCall) btnCall.href = call || '#';
+    if(btnWa) btnWa.href = wa || '#';
+
+    if(!call && btnCall) btnCall.classList.add('disabled');
+    else if(btnCall) btnCall.classList.remove('disabled');
+
+    if(!wa && btnWa) btnWa.classList.add('disabled');
+    else if(btnWa) btnWa.classList.remove('disabled');
+
+    new bootstrap.Modal(document.getElementById('modalPhoneActions')).show();
+  };
+
+
+    const fmtDateIT = (isoDate) => {
+      if(!isoDate) return '';
+      const d = new Date(isoDate);
+      if(isNaN(d)) return isoDate;
+      return d.toLocaleDateString('it-IT');
+    };
+
+    // Visibilità NeoNotai su Account_Riferimento (fallback Account_zona)
+    // ADMIN: accesso completo a tutti i record, senza vincoli di associazione Neo Notaio ↔ Account
+    const recordBelongsToUserNeo = (neo) => {
+      if(isCurrentAdmin()) return true;
+      const a1 = _base(getField(neo, FIELD_ALIASES.Account_Riferimento));
+      const a2 = _base(getField(neo, FIELD_ALIASES.Account_zona));
+      if(a1 && currentAccountKeys.has(accountKey(a1))) return true;
+      if(a2 && currentAccountKeys.has(accountKey(a2))) return true;
+      if(isSharedViewUser()){
+        if(a1 && SHARED_VIEW_ACCOUNTS.includes(a1)) return true;
+        if(a2 && SHARED_VIEW_ACCOUNTS.includes(a2)) return true;
+      }
+      return false;
+    };
+
+    const recordBelongsToUserContatto = (c) => {
+      if(isCurrentAdmin()) return true;
+      const acc = _base(c.nome_account ?? '');
+      const my = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+      return acc === my;
+    };
+
+    const assertWriteAllowedNeo = (neo) => {
+      if(isCurrentAdmin()) return true;
+      const a1 = _base(getField(neo, FIELD_ALIASES.Account_Riferimento));
+      const a2 = _base(getField(neo, FIELD_ALIASES.Account_zona));
+      if(a1 && currentAccountKeys.has(accountKey(a1))) return true;
+      if(a2 && currentAccountKeys.has(accountKey(a2))) return true;
+      return false;
+    };
+
+    const assertWriteAllowedContatto = (row) => {
+      if(isCurrentAdmin()) return true;
+      const acc = _base(row.nome_account ?? '');
+      const my = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+      return acc === my;
+    };
+
+    window.toggleSidebar = () => {
+      document.getElementById('sidebar').classList.toggle('show');
+      document.getElementById('sidebarOverlay').classList.toggle('show');
+    };
+
+    window.navigate = (view) => {
+      document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active-view'));
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+      document.getElementById('view-' + view).classList.add('active-view');
+      const nav = document.getElementById('nav-' + view);
+      if(nav) nav.classList.add('active');
+      if(window.innerWidth < 992) window.toggleSidebar();
+      if(view === 'oggi') window.renderTodayView();
+      if(view === 'statistiche') window.initStatistiche();
+      if(view === 'elenco') window.renderElencoNeo();
+      if(view === 'contatti') window.renderRegistroContatti();
+      if(view === 'strumenti' && isCurrentAdmin()) window.renderUsersTable();
+    };
+
+    window.appLogin = () => {
+      const u = document.getElementById('username').value.trim();
+      const p = document.getElementById('password').value;
+      if(!u || !p) return alert('Inserisci email e password');
+      signInWithEmailAndPassword(auth, u, p).then(()=>{}).catch((error)=>{
+        console.error(error);
+        let msg = 'Errore login.';
+        if(error.code==='auth/invalid-credential') msg='Email o Password errati.';
+        alert(msg);
+      });
+    };
+
+    window.loginGoogle = () => {
+      const provider = new GoogleAuthProvider();
+      signInWithPopup(auth, provider).then(()=>{}).catch((error)=>{
+        console.error(error);
+        alert('Errore accesso Google: ' + error.message);
+      });
+    };
+
+    window.appLogout = () => {
+      signOut(auth).then(()=>{ location.reload(); });
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      if(user){
+        pendingAuthUser = user;
+        if(usersLoaded) checkUserMapping(user);
+      } else {
+        pendingAuthUser = null;
+        document.getElementById('loginOverlay').style.display = 'flex';
+        document.getElementById('mainApp').style.display = 'none';
+      }
+    });
+
+    async function checkUserMapping(firebaseUser){
+      const email = (firebaseUser.email ?? '').toLowerCase();
+      // Custom claims fallback presente ma non usato per l'opzione B.
+      try {
+        const tokenRes = await firebaseUser.getIdTokenResult(true);
+        const claims = (tokenRes && tokenRes.claims) ? tokenRes.claims : {};
+        const isAdminClaim = (claims.role === 'ADMIN') || (claims.admin === true) || (claims.ADMIN === true);
+        if(isAdminClaim){
+          currentUserEmail = email;
+          currentAccountName = (firebaseUser.displayName || accountFromEmail(email) || 'ADMIN');
+          currentUserRole = 'ADMIN';
+          document.getElementById('userDisplay').innerText = currentAccountName;
+          document.getElementById('userEmailDisplay').innerText = email;
+          buildCurrentAccountKeys();
+          startApp();
+          return;
+        }
+      } catch(e){
+        console.warn('Claims non leggibili:', e);
+      }
+
+      const userKey = Object.keys(globalUsers).find(k => (globalUsers[k].u ?? '').toLowerCase() === email);
+      if(userKey){
+        const uData = globalUsers[userKey];
+        currentUserEmail = email;
+        currentAccountName = uData.acc;
+        currentUserRole = uData.role || 'USER';
+      } else {
+        console.warn("Utente non configurato nel gestionale (mappatura users assente).");
+        currentUserEmail = email;
+        currentAccountName = firebaseUser.displayName || accountFromEmail(email);
+        currentUserRole = 'GUEST';
+      }
+
+      document.getElementById('userDisplay').innerText = currentAccountName;
+      document.getElementById('userEmailDisplay').innerText = email;
+      buildCurrentAccountKeys();
+      startApp();
+    }
+
+    function startApp(){
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'flex';
+      document.getElementById('nav-item-strumenti').style.display = isCurrentAdmin() ? 'block' : 'none';
+      rebuildViews();
+      initDrops();
+      window.renderElencoNeo();
+      window.renderRegistroContatti();
+      if(!document.querySelector('.active-view')) window.navigate('home');
+    }
+
+    // ===== ADMIN USER TABLE =====
+    window.newUserAdmin = () => {
+      document.getElementById('formEditUser').reset();
+      document.getElementById('editUserKey').value = '';
+      new bootstrap.Modal(document.getElementById('modalEditUser')).show();
+    };
+
+    window.editUserAdmin = (key) => {
+      const u = globalUsers[key];
+      if(!u) return;
+      document.getElementById('editUserKey').value = key;
+      document.getElementById('editUserEmail').value = u.u || '';
+      document.getElementById('editUserAcc').value = u.acc || '';
+      document.getElementById('editUserRole').value = u.role || 'USER';
+      new bootstrap.Modal(document.getElementById('modalEditUser')).show();
+    };
+
+    window.saveUserAdmin = () => {
+      const key = document.getElementById('editUserKey').value;
+      const email = document.getElementById('editUserEmail').value.toLowerCase().trim();
+      const acc = document.getElementById('editUserAcc').value;
+      const role = document.getElementById('editUserRole').value;
+      if(!email || !acc) return alert('Email e Nome Account sono obbligatori.');
+      const wa_template = (document.getElementById('editUserWATemplate')?.value || '').trim();
+      const userData = { u: email, acc: acc, role: role, wa_template: wa_template };
+      if(key){
+        update(ref(db, `users/${key}`), userData).then(()=>{
+          bootstrap.Modal.getInstance(document.getElementById('modalEditUser')).hide();
+          window.renderUsersTable();
+        });
+      } else {
+        push(ref(db,'users'), userData).then(()=>{
+          bootstrap.Modal.getInstance(document.getElementById('modalEditUser')).hide();
+          window.renderUsersTable();
+        });
+      }
+    };
+
+    window.deleteUserAdmin = (key) => {
+      if(confirm('Eliminare questa mappatura utente?')) remove(ref(db, `users/${key}`));
+    };
+
+    window.renderUsersTable = () => {
+      const tbody = document.getElementById('tbodyUsersAdmin');
+      if(!tbody) return;
+      tbody.innerHTML = '';
+      Object.keys(globalUsers).forEach(key => {
+        const u = globalUsers[key];
+        const badgeRole = (u.role === 'ADMIN') ? '<span class="badge bg-danger">ADMIN</span>' : '<span class="badge bg-secondary">User</span>';
+        tbody.innerHTML += `
+          <tr>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="window.editUserAdmin('${key}')"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="window.deleteUserAdmin('${key}')"><i class="bi bi-trash"></i></button>
+            </td>
+            <td>${escapeHtml(u.u)}</td>
+            <td>${escapeHtml(u.acc)}</td>
+            <td>${badgeRole}</td>
+          </tr>`;
+      });
+    };
+
+    // Opzione B: abilita Giuseppe Savino come ADMIN creando/aggiornando la mappatura in tabella users.
+    window.seedGiuseppeAdmin = () => {
+      if(!isCurrentAdmin()) return alert('Operazione consentita solo agli ADMIN.');
+      const email = 'giuseppe.savino@wolterskluwer.com';
+      const payload = { u: email, acc: 'GIUSEPPE SAVINO', role: 'ADMIN' };
+      const existingKey = Object.keys(globalUsers).find(k => (globalUsers[k].u || '').toLowerCase() === email);
+      if(existingKey){
+        update(ref(db, `users/${existingKey}`), payload)
+          .then(()=>{ alert('Aggiornato: Giuseppe Savino ora è ADMIN (tabella users).'); window.renderUsersTable(); })
+          .catch(e=> alert(e.message));
+      } else {
+        push(ref(db, 'users'), payload)
+          .then(()=>{ alert('Creato: Giuseppe Savino ora è ADMIN (tabella users).'); window.renderUsersTable(); })
+          .catch(e=> alert(e.message));
+      }
+    };
+
+    function rebuildViews(){
+      neoView = isCurrentAdmin() ? [...globalNeoNotai] : globalNeoNotai.filter(recordBelongsToUserNeo);
+      contattiView = isCurrentAdmin() ? [...globalContatti] : globalContatti.filter(recordBelongsToUserContatto);
+      initDrops();
+    }
+
+    function initDrops(){
+      const dlAcc = document.getElementById('listAccounts');
+      if(dlAcc){
+        dlAcc.innerHTML='';
+        if(isCurrentAdmin()){
+          Object.values(globalUsers).forEach(u => {
+            if(u.acc && u.acc !== 'ADMIN') dlAcc.innerHTML += `<option value="${escapeHtml(u.acc)}"></option>`;
+          });
+        } else {
+          const p = getCurrentPolicy();
+          if(p && Array.isArray(p.accounts) && p.accounts.length>0){
+            p.accounts.map(_base).filter(Boolean).forEach(a => dlAcc.innerHTML += `<option value="${escapeHtml(a)}"></option>`);
+          } else {
+            dlAcc.innerHTML = `<option value="${escapeHtml(_base(currentAccountName))}"></option>`;
+          }
+        }
+      }
+
+      const dlNeo = document.getElementById('neoListOptions');
+      if(dlNeo){
+        dlNeo.innerHTML='';
+        neoView.forEach(n => {
+          const num = getField(n, FIELD_ALIASES.num);
+          const nome = getField(n, FIELD_ALIASES.COGNOME_E_NOME);
+          const reg = getField(n, FIELD_ALIASES.REGIONE);
+          const citta = getField(n, FIELD_ALIASES.citta);
+          const label = `${num ?? ''} - ${nome ?? ''} - ${reg ?? ''} - ${citta ?? ''}`.trim();
+          if(label.replace(/\s+/g,'').length>0) dlNeo.innerHTML += `<option value="${escapeHtml(label)}"></option>`;
+        });
+      }
+
+      const selAcc = document.getElementById('filterMapAccount');
+      if(selAcc){
+        selAcc.innerHTML='';
+        const allAccounts = new Set();
+        Object.values(globalUsers).forEach(u => { if(u.acc && u.acc !== 'ADMIN') allAccounts.add(_base(u.acc)); });
+        neoView.forEach(n => {
+          const a = _base(getField(n, FIELD_ALIASES.Account_Riferimento));
+          if(a) allAccounts.add(a);
+        });
+        const myAcc = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+        if(isCurrentAdmin()) selAcc.innerHTML += `<option value="">Tutti</option>`;
+        Array.from(allAccounts).sort().forEach(a => {
+          const selected = (!isCurrentAdmin() && a === myAcc) ? 'selected' : '';
+          selAcc.innerHTML += `<option value="${escapeHtml(a)}" ${selected}>${escapeHtml(a)}</option>`;
+        });
+        if(!isCurrentAdmin() && selAcc.options.length===0){
+          selAcc.innerHTML = `<option value="${escapeHtml(myAcc)}" selected>${escapeHtml(myAcc)}</option>`;
+        }
+      }
+
+      const selReg = document.getElementById('filterMapRegione');
+      if(selReg){
+        selReg.innerHTML='';
+        selReg.innerHTML += `<option value="">Tutte</option>`;
+        const regs = new Set(neoView.map(n => _base(getField(n, FIELD_ALIASES.REGIONE))).filter(Boolean));
+        Array.from(regs).sort().forEach(r => selReg.innerHTML += `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`);
+      }
+    }
+
+    const SCHEda_COLS = [
+      { label: 'num.', key: FIELD_ALIASES.num },
+      { label: 'Graduatoria_finale', key: FIELD_ALIASES.Graduatoria_finale },
+      { label: 'COGNOME_E_NOME', key: FIELD_ALIASES.COGNOME_E_NOME },
+      { label: 'LUOGO_NASCITA', key: FIELD_ALIASES.LUOGO_NASCITA },
+      { label: 'DATA_NASCITA', key: FIELD_ALIASES.DATA_NASCITA },
+      { label: 'città_dove_si_trova', key: FIELD_ALIASES.citta },
+      { label: 'Via_dove_si_trova', key: FIELD_ALIASES.via },
+      { label: 'REGIONE', key: FIELD_ALIASES.REGIONE },
+      { label: 'CENTRO_DESTINAZIONE', key: FIELD_ALIASES.CENTRO_DESTINAZIONE },
+      { label: 'Centro_Partenza', key: FIELD_ALIASES.Centro_Partenza },
+      { label: 'Account_Riferimento', key: FIELD_ALIASES.Account_Riferimento },
+      { label: 'Account_zona', key: FIELD_ALIASES.Account_zona },
+      { label: 'Data_orale', key: FIELD_ALIASES.Data_orale },
+      { label: 'PRESSO_STUDIO_NOTARILE', key: FIELD_ALIASES.PRESSO_STUDIO_NOTARILE },
+      { label: 'SOFTWARE_in_uso', key: FIELD_ALIASES.SOFTWARE_in_uso },
+      { label: 'SEDE_PREFERITA', key: FIELD_ALIASES.SEDE_PREFERITA },
+      { label: 'TELEFONO_1', key: FIELD_ALIASES.TELEFONO_1 },
+      { label: 'TELEFONO_2', key: FIELD_ALIASES.TELEFONO_2 },
+      { label: 'E-MAIL_1', key: FIELD_ALIASES.EMAIL_1 },
+      { label: 'E-MAIL_2', key: FIELD_ALIASES.EMAIL_2 },
+      { label: 'Contatto_LINKEDIN', key: FIELD_ALIASES.Contatto_LINKEDIN },
+      { label: 'ISCRIZIONE_SITO_NEONOTAI', key: FIELD_ALIASES.ISCRIZIONE_SITO_NEONOTAI },
+      { label: 'ISCRIZIONE_NOTAIONEXT_DAY', key: FIELD_ALIASES.ISCRIZIONE_NOTAIONEXT_DAY },
+      { label: 'COLLEGATO_AL_NOTAIONEXT_DAY', key: FIELD_ALIASES.COLLEGATO_AL_NOTAIONEXT_DAY },
+      { label: 'ISCRIZION_TAPPE_LIVE_TOUR', key: FIELD_ALIASES.ISCRIZION_TAPPE_LIVE_TOUR },
+      { label: 'PARTECIPAZIONE_LIVE_TOUR', key: FIELD_ALIASES.PARTECIPAZIONE_LIVE_TOUR },
+      { label: 'POSSIBILE_TESTIMONIAL', key: FIELD_ALIASES.POSSIBILE_TESTIMONIAL },
+      { label: 'Notai_in_contatto', key: FIELD_ALIASES.Notai_in_contatto },
+      { label: '%_scelta_OASISTEMI', key: FIELD_ALIASES.perc_scelta_OASISTEMI },
+      { label: 'ORIENTAMENTO', key: FIELD_ALIASES.ORIENTAMENTO },
+      { label: 'Ordine_in_Area_Partner_SI-NO', key: FIELD_ALIASES.Ordine_in_Area_Partner },
+      { label: 'SW_SCELTO', key: FIELD_ALIASES.SW_SCELTO },
+      { label: 'AREA_NNX_APERTA_SI-NO', key: FIELD_ALIASES.AREA_NNX_APERTA },
+      { label: 'SEDE_ASSEGNATA', key: FIELD_ALIASES.SEDE_ASSEGNATA },
+      { label: 'MOTIVO_NON_SCELTO_NNX', key: FIELD_ALIASES.MOTIVO_NON_SCELTO_NNX },
+    ];
+
+    window.caricaSchedaNeo = () => {
+      const qRawFull = (document.getElementById('searchInput').value ?? '').toLowerCase().trim();
+      if(!qRawFull) return;
+      // Se arriva dal datalist (es: "num - nome - regione - città"), estraggo i primi 2 campi per una ricerca robusta
+      const parts = qRawFull.split(' - ').map(s=>s.trim()).filter(Boolean);
+      const qNum = parts.length>0 ? parts[0] : qRawFull;
+      const qName = parts.length>1 ? parts[1] : '';
+      const qRaw = qRawFull;
+      const qCompact = qRaw.replace(/\s+/g,'');
+      const neo = neoView.find(n => {
+        const num = String(getField(n, FIELD_ALIASES.num) ?? '').toLowerCase();
+        const nome = String(getField(n, FIELD_ALIASES.COGNOME_E_NOME) ?? '').toLowerCase();
+        const label = `${num} - ${nome}`;
+        return (qNum && num.includes(qNum)) || (qName && nome.includes(qName)) || num.includes(qRaw) || nome.includes(qRaw) || label.includes(qRaw) || label.replace(/\s+/g,'').includes(qCompact);
+      });
+      if(!neo) return alert('Neo Notaio non trovato.');
+
+      let th = '', td = '';
+      SCHEda_COLS.forEach(c => {
+        th += `<th>${escapeHtml(c.label)}</th>`;
+        td += `<td>${escapeHtml(getField(neo, c.key))}</td>`;
+      });
+      document.getElementById('tabellaSchedaNeo').innerHTML = `<thead><tr>${th}</tr></thead><tbody><tr>${td}</tr></tbody>`;
+      document.getElementById('cardSchedaNeo').style.display = 'block';
+
+      document.getElementById('neoKey').value = neo.firebaseKey;
+      document.getElementById('contattoNeoKey').value = neo.firebaseKey;
+
+      document.getElementById('cardAggiornaContatto').style.display = 'block';
+      document.getElementById('cardContattiNeo').style.display = 'block';
+
+      populateUpdateForm(neo);
+
+      // Data inserimento lead (opzione A): data/ora sistema al momento della registrazione contatto
+      document.getElementById('leadInsertedAt').value = new Date().toLocaleString('it-IT');
+      document.getElementById('dataContatto').valueAsDate = new Date();
+      document.getElementById('nomeAccount').value = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+      document.getElementById('feedbackNeo').value = '';
+      document.getElementById('nextContatto').value = '';
+
+      window.refreshStoricoContatti();
+    };
+
+    function populateUpdateForm(neo){
+      document.getElementById('f_CENTRO_DESTINAZIONE').value = getField(neo, FIELD_ALIASES.CENTRO_DESTINAZIONE) || '';
+      document.getElementById('f_Centro_Partenza').value = getField(neo, FIELD_ALIASES.Centro_Partenza) || '';
+      document.getElementById('f_Account_Riferimento').value = _base(getField(neo, FIELD_ALIASES.Account_Riferimento) || '');
+      document.getElementById('f_Account_zona').value = getField(neo, FIELD_ALIASES.Account_zona) || '';
+      const dOrale = getField(neo, FIELD_ALIASES.Data_orale);
+      document.getElementById('f_Data_orale').value = (dOrale && String(dOrale).includes('-')) ? String(dOrale).slice(0,10) : '';
+      document.getElementById('f_città_dove_si_trova').value = getField(neo, FIELD_ALIASES.citta) || '';
+      document.getElementById('f_REGIONE').value = getField(neo, FIELD_ALIASES.REGIONE) || '';
+      document.getElementById('f_Via_dove_si_trova').value = getField(neo, FIELD_ALIASES.via) || '';
+      document.getElementById('f_PRESSO_STUDIO_NOTARILE').value = getField(neo, FIELD_ALIASES.PRESSO_STUDIO_NOTARILE) || '';
+      document.getElementById('f_SOFTWARE_in_uso').value = getField(neo, FIELD_ALIASES.SOFTWARE_in_uso) || '';
+      document.getElementById('f_SEDE_PREFERITA').value = getField(neo, FIELD_ALIASES.SEDE_PREFERITA) || '';
+      document.getElementById('f_TELEFONO_1').value = getField(neo, FIELD_ALIASES.TELEFONO_1) || '';
+      document.getElementById('f_TELEFONO_2').value = getField(neo, FIELD_ALIASES.TELEFONO_2) || '';
+      document.getElementById('f_E_MAIL_1').value = getField(neo, FIELD_ALIASES.EMAIL_1) || '';
+      document.getElementById('f_E_MAIL_2').value = getField(neo, FIELD_ALIASES.EMAIL_2) || '';
+      document.getElementById('f_Contatto_LINKEDIN').value = getField(neo, FIELD_ALIASES.Contatto_LINKEDIN) || '';
+      document.getElementById('f_ISCRIZIONE_SITO_NEONOTAI').value = getField(neo, FIELD_ALIASES.ISCRIZIONE_SITO_NEONOTAI) || '';
+      document.getElementById('f_ISCRIZIONE_NOTAIONEXT_DAY').value = getField(neo, FIELD_ALIASES.ISCRIZIONE_NOTAIONEXT_DAY) || '';
+      document.getElementById('f_COLLEGATO_AL_NOTAIONEXT_DAY').value = getField(neo, FIELD_ALIASES.COLLEGATO_AL_NOTAIONEXT_DAY) || '';
+      document.getElementById('f_ISCRIZION_TAPPE_LIVE_TOUR').value = getField(neo, FIELD_ALIASES.ISCRIZION_TAPPE_LIVE_TOUR) || '';
+      document.getElementById('f_PARTECIPAZIONE_LIVE_TOUR').value = getField(neo, FIELD_ALIASES.PARTECIPAZIONE_LIVE_TOUR) || '';
+      document.getElementById('f_POSSIBILE_TESTIMONIAL').value = getField(neo, FIELD_ALIASES.POSSIBILE_TESTIMONIAL) || '';
+      document.getElementById('f_Notai_in_contatto').value = getField(neo, FIELD_ALIASES.Notai_in_contatto) || '';
+      document.getElementById('f__perc_scelta_OASISTEMI').value = getField(neo, FIELD_ALIASES.perc_scelta_OASISTEMI) || '';
+      document.getElementById('f_ORIENTAMENTO').value = getField(neo, FIELD_ALIASES.ORIENTAMENTO) || '';
+      document.getElementById('f_Ordine_in_Area_Partner').value = getField(neo, FIELD_ALIASES.Ordine_in_Area_Partner) || '';
+      document.getElementById('f_SW_SCELTO').value = getField(neo, FIELD_ALIASES.SW_SCELTO) || '';
+      document.getElementById('f_AREA_NNX_APERTA').value = getField(neo, FIELD_ALIASES.AREA_NNX_APERTA) || '';
+      document.getElementById('f_SEDE_ASSEGNATA').value = getField(neo, FIELD_ALIASES.SEDE_ASSEGNATA) || '';
+      document.getElementById('f_MOTIVO_NON_SCELTO_NNX').value = getField(neo, FIELD_ALIASES.MOTIVO_NON_SCELTO_NNX) || '';
+    }
+
+    window.salvaAggiornamentiNeo = () => {
+      if(!userCan('update')) return alert('Permesso negato: non puoi modificare dati.');
+      const key = document.getElementById('neoKey').value;
+      if(!key) return alert('Nessuna scheda caricata.');
+      const neo = neoView.find(n => n.firebaseKey === key) || globalNeoNotai.find(n => n.firebaseKey === key);
+      if(!neo) return alert('Record non trovato.');
+      if(!assertWriteAllowedNeo(neo)) return alert('Permesso negato: record fuori perimetro.');
+
+      const patch = {};
+      setFieldPatch(patch, FIELD_ALIASES.CENTRO_DESTINAZIONE, document.getElementById('f_CENTRO_DESTINAZIONE').value);
+      setFieldPatch(patch, FIELD_ALIASES.Centro_Partenza, document.getElementById('f_Centro_Partenza').value);
+      setFieldPatch(patch, FIELD_ALIASES.Account_Riferimento, _base(document.getElementById('f_Account_Riferimento').value));
+      setFieldPatch(patch, FIELD_ALIASES.Account_zona, document.getElementById('f_Account_zona').value);
+      setFieldPatch(patch, FIELD_ALIASES.Data_orale, document.getElementById('f_Data_orale').value);
+      setFieldPatch(patch, FIELD_ALIASES.citta, document.getElementById('f_città_dove_si_trova').value);
+      setFieldPatch(patch, FIELD_ALIASES.REGIONE, document.getElementById('f_REGIONE').value);
+      setFieldPatch(patch, FIELD_ALIASES.via, document.getElementById('f_Via_dove_si_trova').value);
+      setFieldPatch(patch, FIELD_ALIASES.PRESSO_STUDIO_NOTARILE, document.getElementById('f_PRESSO_STUDIO_NOTARILE').value);
+      setFieldPatch(patch, FIELD_ALIASES.SOFTWARE_in_uso, document.getElementById('f_SOFTWARE_in_uso').value);
+      setFieldPatch(patch, FIELD_ALIASES.SEDE_PREFERITA, document.getElementById('f_SEDE_PREFERITA').value);
+      setFieldPatch(patch, FIELD_ALIASES.TELEFONO_1, document.getElementById('f_TELEFONO_1').value);
+      setFieldPatch(patch, FIELD_ALIASES.TELEFONO_2, document.getElementById('f_TELEFONO_2').value);
+      setFieldPatch(patch, FIELD_ALIASES.EMAIL_1, document.getElementById('f_E_MAIL_1').value);
+      setFieldPatch(patch, FIELD_ALIASES.EMAIL_2, document.getElementById('f_E_MAIL_2').value);
+      setFieldPatch(patch, FIELD_ALIASES.Contatto_LINKEDIN, document.getElementById('f_Contatto_LINKEDIN').value);
+      setFieldPatch(patch, FIELD_ALIASES.ISCRIZIONE_SITO_NEONOTAI, document.getElementById('f_ISCRIZIONE_SITO_NEONOTAI').value);
+      setFieldPatch(patch, FIELD_ALIASES.ISCRIZIONE_NOTAIONEXT_DAY, document.getElementById('f_ISCRIZIONE_NOTAIONEXT_DAY').value);
+      setFieldPatch(patch, FIELD_ALIASES.COLLEGATO_AL_NOTAIONEXT_DAY, document.getElementById('f_COLLEGATO_AL_NOTAIONEXT_DAY').value);
+      setFieldPatch(patch, FIELD_ALIASES.ISCRIZION_TAPPE_LIVE_TOUR, document.getElementById('f_ISCRIZION_TAPPE_LIVE_TOUR').value);
+      setFieldPatch(patch, FIELD_ALIASES.PARTECIPAZIONE_LIVE_TOUR, document.getElementById('f_PARTECIPAZIONE_LIVE_TOUR').value);
+      setFieldPatch(patch, FIELD_ALIASES.POSSIBILE_TESTIMONIAL, document.getElementById('f_POSSIBILE_TESTIMONIAL').value);
+      setFieldPatch(patch, FIELD_ALIASES.Notai_in_contatto, document.getElementById('f_Notai_in_contatto').value);
+      setFieldPatch(patch, FIELD_ALIASES.perc_scelta_OASISTEMI, document.getElementById('f__perc_scelta_OASISTEMI').value);
+      setFieldPatch(patch, FIELD_ALIASES.ORIENTAMENTO, document.getElementById('f_ORIENTAMENTO').value);
+      setFieldPatch(patch, FIELD_ALIASES.Ordine_in_Area_Partner, document.getElementById('f_Ordine_in_Area_Partner').value);
+      setFieldPatch(patch, FIELD_ALIASES.SW_SCELTO, document.getElementById('f_SW_SCELTO').value);
+      setFieldPatch(patch, FIELD_ALIASES.AREA_NNX_APERTA, document.getElementById('f_AREA_NNX_APERTA').value);
+      setFieldPatch(patch, FIELD_ALIASES.SEDE_ASSEGNATA, document.getElementById('f_SEDE_ASSEGNATA').value);
+      setFieldPatch(patch, FIELD_ALIASES.MOTIVO_NON_SCELTO_NNX, document.getElementById('f_MOTIVO_NON_SCELTO_NNX').value);
+
+      update(ref(db, `neo_notai/${key}`), patch)
+        .then(()=> alert('Aggiornamenti salvati!'))
+        .catch(e => alert(e.message));
+    };
+
+    window.salvaContattoNeo = () => {
+      if(!userCan('insert')) return alert('Permesso negato: non puoi inserire contatti.');
+      const neoKey = document.getElementById('contattoNeoKey').value;
+      if(!neoKey) return alert('Carica prima una scheda Neo Notaio.');
+      const neo = neoView.find(n => n.firebaseKey === neoKey) || globalNeoNotai.find(n => n.firebaseKey === neoKey);
+      if(!neo) return alert('Neo Notaio non trovato.');
+      if(!assertWriteAllowedNeo(neo)) return alert('Permesso negato: record neo fuori perimetro.');
+
+      const insertedAt = new Date().toISOString();
+      const dataContatto = document.getElementById('dataContatto').value;
+      const account = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+      const feedback = document.getElementById('feedbackNeo').value.trim();
+      const next = document.getElementById('nextContatto').value;
+      const esito = (document.getElementById('esitoRapido')?.value || '').trim();
+      const actionType = (document.getElementById('nextActionType')?.value || 'TASK');
+      const createTask = !!document.getElementById('createTaskIcs')?.checked;
+      const createMeeting = !!document.getElementById('createMeetingIcs')?.checked;
+      if(!dataContatto || !feedback) return alert('Compila Data contatto e Feedback.');
+
+      const row = {
+        neo_key: neoKey,
+        neo_nome: String(getField(neo, FIELD_ALIASES.COGNOME_E_NOME) ?? ''),
+        data_inserimento_lead: insertedAt,
+        data_contatto: dataContatto,
+        nome_account: account,
+      esito: esito || '',
+      next_action_type: actionType || 'TASK',
+        feedback_neo_notaio: feedback,
+        prossimo_contatto: next || ''
+      };
+
+      if(!assertWriteAllowedContatto(row)) return alert('Permesso negato sul contatto.');
+
+      push(ref(db,'contatti'), row)
+        .then(()=>{
+          alert('Contatto registrato!');
+      // aggiorna campi sintetici su neo_notai per controllo copertura/next action
+      const neoPatch = {
+        last_contact_date: dataContatto,
+        last_outcome: esito || '',
+        next_action_datetime: next || '',
+        next_action_type: actionType || 'TASK',
+        last_contact_by: account,
+        last_feedback: feedback
+      };
+      update(ref(db, `neo_notai/${neoKey}`), neoPatch).catch(e=>console.warn('Impossibile aggiornare campi neo_notai:', e));
+          document.getElementById('feedbackNeo').value='';
+          document.getElementById('nextContatto').value='';
+          window.refreshStoricoContatti();
+          window.renderRegistroContatti();
+          if(next){
+            const telNeo = (getField(neo, FIELD_ALIASES.TELEFONO_1) || getField(neo, FIELD_ALIASES.TELEFONO_2) || document.getElementById('f_TELEFONO_1')?.value || document.getElementById('f_TELEFONO_2')?.value || '').toString().trim();
+            const emNeo = (getField(neo, FIELD_ALIASES.EMAIL_1) || getField(neo, FIELD_ALIASES.EMAIL_2) || document.getElementById('f_E_MAIL_1')?.value || document.getElementById('f_E_MAIL_2')?.value || '').toString().trim();
+            const summaryICS = `Follow-up Neo Notaio: ${getField(neo, FIELD_ALIASES.COGNOME_E_NOME) ?? ''}${telNeo ? ` | Tel: ${telNeo}` : ''}${emNeo ? ` | Email: ${emNeo}` : ''}`;
+            const updateText = buildUpdateFormText();
+            const descriptionICS = `Prossimo contatto programmato.\nFeedback ultimo: ${feedback}`
+              + (telNeo ? `\nTelefono: ${telNeo}` : '')
+              + (emNeo ? `\nEmail: ${emNeo}` : '')
+              + `\n\nDATI CONTATTO DA AGGIORNARE:\n${updateText}`;
+            const ics = buildICSReminder({
+              summary: summaryICS,
+              description: descriptionICS,
+              startLocal: next,
+              durationMinutes: 30,
+              alarmMinutes: 30
+            });
+            const safeNum = (getField(neo, FIELD_ALIASES.num) ?? 'neo');
+            // Evento calendario (meeting) solo se selezionato MEETING
+            if(createMeeting && actionType === 'MEETING') {
+              downloadTextFile(ics, `Meeting_${account.replace(/\s+/g,'_')}_${safeNum}.ics`, 'text/calendar');
+            }
+            // Task (VTODO) sempre se spuntato
+            if(createTask) {
+              const taskSummary = summaryICS.replace('Follow-up', 'Task');
+              const taskIcs = buildICSTask({ summary: taskSummary, description: descriptionICS, dueLocal: next });
+              downloadTextFile(taskIcs, `Task_${account.replace(/\s+/g,'_')}_${safeNum}.ics`, 'text/calendar');
+            }
+          }
+        })
+        .catch(e => alert(e.message));
+    };
+
+    window.refreshStoricoContatti = () => {
+      const neoKey = document.getElementById('contattoNeoKey').value;
+      const tbody = document.getElementById('tbodyStoricoContatti');
+      if(!tbody) return;
+      tbody.innerHTML='';
+      if(!neoKey){
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Carica una scheda per vedere lo storico.</td></tr>';
+        return;
+      }
+      const rows = (globalContatti ?? []).filter(c => c.neo_key === neoKey);
+      rows.sort((a,b)=> new Date(b.data_contatto || b.data_inserimento_lead) - new Date(a.data_contatto || a.data_inserimento_lead));
+      if(rows.length===0){
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nessun contatto registrato.</td></tr>';
+        return;
+      }
+      rows.forEach(r => {
+        const nextTxt = r.prossimo_contatto ? new Date(r.prossimo_contatto).toLocaleString('it-IT') : '';
+        const canDel = isCurrentAdmin() || (_base(r.nome_account) === _base(currentAccountName ?? accountFromEmail(currentUserEmail)) && userCan('del'));
+        tbody.innerHTML += `
+          <tr>
+            <td class="small">${escapeHtml(new Date(r.data_inserimento_lead).toLocaleString('it-IT'))}</td>
+            <td class="fw-bold">${escapeHtml(fmtDateIT(r.data_contatto))}</td>
+            <td>${escapeHtml(r.nome_account)}</td>
+            <td class="small" style="max-width:420px; white-space:normal;">${escapeHtml(r.feedback_neo_notaio)}</td>
+            <td class="small">${escapeHtml(nextTxt)}</td>
+            <td style="white-space:nowrap;">${canDel ? `<button class="btn btn-sm btn-outline-danger" onclick="window.eliminaContatto('${r.firebaseKey}')"><i class="bi bi-trash"></i></button>` : ''}</td>
+          </tr>`;
+      });
+    };
+
+    window.eliminaContatto = (key) => {
+      if(!userCan('del')) return alert('Permesso negato: non puoi cancellare contatti.');
+      const row = globalContatti.find(c => c.firebaseKey === key);
+      if(!row) return alert('Record non trovato.');
+      if(!assertWriteAllowedContatto(row)) return alert('Permesso negato: contatto fuori perimetro.');
+      if(confirm('Eliminare questo contatto?')) remove(ref(db, `contatti/${key}`));
+    };
+
+    window.renderRegistroContatti = () => {
+      const thead = document.getElementById('theadContatti');
+      const tbody = document.getElementById('tbodyContatti');
+      if(!thead || !tbody) return;
+      const cols = [
+        { label:'NEO NOTAIO', key:'neo_nome' },
+        { label:'ACCOUNT', key:'nome_account' },
+        { label:'DATA CONTATTO', key:'data_contatto' },
+        { label:'FEEDBACK', key:'feedback_neo_notaio' },
+        { label:'PROSSIMO CONTATTO', key:'prossimo_contatto' },
+        { label:'INSERITO IL', key:'data_inserimento_lead' },
+      ];
+      thead.innerHTML = '<tr>' + cols.map((c, idx) => `<th>${escapeHtml(c.label)}<input type="text" class="header-filter" onkeyup="window.filterTable('tabellaContattiReal', ${idx})"></th>`).join('') + '</tr>';
+      const rows = (contattiView ?? []).slice().sort((a,b)=> new Date(b.data_contatto || b.data_inserimento_lead) - new Date(a.data_contatto || a.data_inserimento_lead));
+      if(rows.length===0){
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nessun contatto disponibile.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r => {
+        const nextTxt = r.prossimo_contatto ? new Date(r.prossimo_contatto).toLocaleString('it-IT') : '';
+        const insTxt = r.data_inserimento_lead ? new Date(r.data_inserimento_lead).toLocaleString('it-IT') : '';
+        return `
+          <tr>
+            <td>${escapeHtml(r.neo_nome || '')}</td>
+            <td>${escapeHtml(r.nome_account || '')}</td>
+            <td class="fw-bold">${escapeHtml(fmtDateIT(r.data_contatto))}</td>
+            <td class="small" style="max-width:520px; white-space:normal;">${escapeHtml(r.feedback_neo_notaio || '')}</td>
+            <td class="small">${escapeHtml(nextTxt)}</td>
+            <td class="small">${escapeHtml(insTxt)}</td>
+          </tr>`;
+      }).join('');
+    };
+
+    window.filterTable = (tableId, colIndex) => {
+      const table = document.getElementById(tableId);
+      if(!table) return;
+      const trs = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      const inputs = table.getElementsByTagName('thead')[0].getElementsByTagName('input');
+      const filters = [];
+      for(let i=0;i<inputs.length;i++) filters.push({ idx:i, val:(inputs[i].value || '').toUpperCase() });
+      for(let i=0;i<trs.length;i++){
+        let show = true;
+        const tds = trs[i].getElementsByTagName('td');
+        for(const f of filters){
+          if(f.val){
+            const txt = (tds[f.idx] ? (tds[f.idx].textContent || tds[f.idx].innerText || '') : '');
+            if(txt.toUpperCase().indexOf(f.val) === -1){ show=false; break; }
+          }
+        }
+        trs[i].style.display = show ? '' : 'none';
+      }
+    };
+
+    window.renderElencoNeo = () => {
+      const thead = document.getElementById('theadNeo');
+      const tbody = document.getElementById('tbodyNeo');
+      if(!thead || !tbody) return;
+      const cols = [
+        { label:'num.', key: FIELD_ALIASES.num },
+        { label:'COGNOME_E_NOME', key: FIELD_ALIASES.COGNOME_E_NOME },
+        { label:'REGIONE', key: FIELD_ALIASES.REGIONE },
+        { label:'città', key: FIELD_ALIASES.citta },
+        { label:'Via', key: FIELD_ALIASES.via },
+        { label:'Account_Riferimento', key: FIELD_ALIASES.Account_Riferimento },
+        { label:'TELEFONO_1', key: FIELD_ALIASES.TELEFONO_1 },
+        { label:'E-MAIL_1', key: FIELD_ALIASES.EMAIL_1 },
+      ];
+      thead.innerHTML = '<tr>' + cols.map((c, idx) => `<th>${escapeHtml(c.label)}<input type="text" class="header-filter" onkeyup="window.filterTable('tabellaNeoReal', ${idx})"></th>`).join('') + '</tr>';
+      const rows = (neoView ?? []).slice().sort((a,b) => (String(getField(a, FIELD_ALIASES.COGNOME_E_NOME)||'')).localeCompare(String(getField(b, FIELD_ALIASES.COGNOME_E_NOME)||''), 'it', {sensitivity:'base'}));
+      if(rows.length===0){
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nessun Neo Notaio disponibile.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(n => {
+        const num = getField(n, FIELD_ALIASES.num);
+        const nome = getField(n, FIELD_ALIASES.COGNOME_E_NOME);
+        const reg = getField(n, FIELD_ALIASES.REGIONE);
+        const citta = getField(n, FIELD_ALIASES.citta);
+        const via = getField(n, FIELD_ALIASES.via);
+        const acc = getField(n, FIELD_ALIASES.Account_Riferimento);
+        const tel = getField(n, FIELD_ALIASES.TELEFONO_1);
+        const em = getField(n, FIELD_ALIASES.EMAIL_1);
+        const label = `${num ?? ''} - ${nome ?? ''}`;
+        return `
+          <tr style="cursor:pointer;" onclick="document.getElementById('searchInput').value='${escapeHtml(label)}'; window.navigate('home'); setTimeout(()=>window.caricaSchedaNeo(), 50);">
+            <td class="fw-bold">${escapeHtml(num)}</td>
+            <td>${escapeHtml(nome)}</td>
+            <td>${escapeHtml(reg)}</td>
+            <td>${escapeHtml(citta)}</td>
+            <td>${escapeHtml(via)}</td>
+            <td>${escapeHtml(acc)}</td>
+            <td>${escapeHtml(tel)}</td>
+            <td>${escapeHtml(em)}</td>
+          </tr>`;
+      }).join('');
+    };
+
+    window.initStatistiche = () => {
+      initDrops();
+      if(!mapInstance){
+        mapInstance = L.map('mapContainer').setView([41.9028, 12.4964], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(mapInstance);
+        markersGroup = L.layerGroup().addTo(mapInstance);
+        if(!mapInstance._neoPopupHandlersAdded){
+          mapInstance.on('click', () => mapInstance.closePopup());
+          document.addEventListener('keydown', (ev) => { if(ev.key==='Escape') mapInstance.closePopup(); });
+          mapInstance._neoPopupHandlersAdded = true;
+        }
+      }
+      setTimeout(()=> mapInstance.invalidateSize(), 200);
+    };
+
+    const getLastFeedbackForNeo = (neoKey) => {
+      const rows = (globalContatti ?? []).filter(c => c.neo_key === neoKey);
+      if(rows.length===0) return '';
+      rows.sort((a,b)=> new Date(b.data_contatto || b.data_inserimento_lead) - new Date(a.data_contatto || a.data_inserimento_lead));
+      return rows[0].feedback_neo_notaio || '';
+    };
+
+    window.aggiornaMappa = async () => {
+      if(!markersGroup) return;
+      markersGroup.clearLayers();
+      const accFilter = (document.getElementById('filterMapAccount')?.value ?? '');
+      const regFilter = (document.getElementById('filterMapRegione')?.value ?? '');
+      let list = [...neoView];
+      if(accFilter) list = list.filter(n => _base(getField(n, FIELD_ALIASES.Account_Riferimento)) === _base(accFilter));
+      if(regFilter) list = list.filter(n => _base(getField(n, FIELD_ALIASES.REGIONE)) === _base(regFilter));
+      document.getElementById('mapResultCount').innerText = list.length;
+      if(list.length===0) return alert('Nessun Neo Notaio soddisfa i filtri.');
+      if(list.length>60 && !confirm(`Trovati ${list.length} Neo Notai. Continuare?`)) return;
+      let shown=0;
+      for(const neo of list){
+        const via = getField(neo, FIELD_ALIASES.via);
+        const citta = getField(neo, FIELD_ALIASES.citta);
+        if(!citta) continue;
+        const query = [via, citta, 'Italy'].filter(Boolean).join(', ');
+        try{
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+          if(data && data.length>0){
+            let lat = parseFloat(data[0].lat);
+            let lon = parseFloat(data[0].lon);
+            lat += (Math.random()-0.5) * 0.0004;
+            lon += (Math.random()-0.5) * 0.0004;
+            const marker = L.marker([lat, lon]);
+            const nome = getField(neo, FIELD_ALIASES.COGNOME_E_NOME);
+            const tel = getField(neo, FIELD_ALIASES.TELEFONO_1) || getField(neo, FIELD_ALIASES.TELEFONO_2);
+            const em = getField(neo, FIELD_ALIASES.EMAIL_1) || getField(neo, FIELD_ALIASES.EMAIL_2);
+            const lastFb = getLastFeedbackForNeo(neo.firebaseKey);
+            const popupContent = `
+              <div style="font-size:0.9rem; min-width: 260px;">
+                <div class="pill-blue mb-1">${escapeHtml(nome)}</div>
+                <div class="text-primary small">${escapeHtml(citta)}${via ? ' - ' + escapeHtml(via) : ''}</div>
+                <div class="d-flex flex-column gap-1 mt-2" style="line-height:1.2;">
+                  ${cleanPhone(tel) ? `<a href="${escapeHtml(phoneHref(tel))}" class="text-decoration-none text-primary"><i class="bi bi-telephone-fill me-1"></i>${escapeHtml(cleanPhone(tel))}</a>` : `<span class="text-muted small"><i class="bi bi-telephone me-1"></i>Telefono: N/D</span>`}
+                  ${cleanEmail(em) ? `<a href="${escapeHtml(emailHref(em))}" class="text-decoration-none text-primary"><i class="bi bi-envelope-fill me-1"></i>${escapeHtml(cleanEmail(em))}</a>` : `<span class="text-muted small"><i class="bi bi-envelope me-1"></i>Email: N/D</span>`}
+                </div>
+                <div class="bg-light p-2 rounded border mt-2">
+                  <div class="small text-primary fw-bold">Ultimo feedback</div>
+                  <div class="small" style="white-space:normal;">${escapeHtml(lastFb || 'Nessun contatto registrato.')}</div>
+                </div>
+              </div>`;
+            marker.bindPopup(popupContent, { closeButton:true, autoClose:true, closeOnClick:false, autoPan:true });
+            marker.on('click', function(e){ L.DomEvent.stopPropagation(e); this.openPopup(); });
+            markersGroup.addLayer(marker);
+            shown++;
+          }
+          await new Promise(r => setTimeout(r, 1100));
+        }catch(e){
+          console.error('Errore geocoding', query, e);
+        }
+      }
+      if(shown>0) alert(`Mappa aggiornata! Visualizzati ${shown} Neo Notai.`);
+      else alert('Nessun indirizzo geocodificabile (verifica città/via).');
+    };
+
+    
+
+    // ===== UX: Esito rapido + template =====
+    window.setOutcome = (code) => {
+      const esitoEl = document.getElementById('esitoRapido');
+      if(esitoEl) esitoEl.value = code;
+      const fb = document.getElementById('feedbackNeo');
+      const next = document.getElementById('nextContatto');
+      const typeSel = document.getElementById('nextActionType');
+      const now = new Date();
+      const addDays = (d) => { const x=new Date(now.getTime()); x.setDate(x.getDate()+d); return x; };
+      const toLocalInput = (d) => {
+        const pad=(n)=>String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      if(typeSel){
+        typeSel.value = (code === 'APPUNTAMENTO') ? 'MEETING' : 'TASK';
+      }
+      if(next){
+        if(code === 'NON_RISPONDE') next.value = toLocalInput(addDays(2));
+        if(code === 'RICHIAMARE') next.value = toLocalInput(addDays(3));
+        if(code === 'EMAIL_INVIATA') next.value = toLocalInput(addDays(5));
+        if(code === 'RAGGIUNTO') next.value = toLocalInput(addDays(7));
+      }
+      if(fb){
+        const tpl = {
+          'RAGGIUNTO': 'Contatto riuscito.\nEsigenze/Note: \nProssimi step: ',
+          'NON_RISPONDE': 'Tentativo di contatto: non risponde.\nCanale: telefono.\nProssimo tentativo: ',
+          'EMAIL_INVIATA': 'Email inviata con presentazione/recap.\nOggetto email: \nProssimi step: ',
+          'RICHIAMARE': 'Richiamare il Neo Notaio.\nMotivo: \nProssimi step: ',
+          'APPUNTAMENTO': 'Appuntamento fissato.\nObiettivo call: \nMateriale da inviare: ',
+          'PERSO': 'Esito negativo / non interessato.\nMotivo: '
+        };
+        if(!fb.value || fb.value.trim().length < 5) fb.value = tpl[code] || fb.value;
+      }
+    };
+
+    // ===== Speech-to-text (mobile friendly, se supportato dal browser) =====
+    window.startDictation = () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SpeechRecognition){
+        return alert('Dettatura non supportata su questo browser.');
+      }
+      const rec = new SpeechRecognition();
+      rec.lang = 'it-IT';
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      const fb = document.getElementById('feedbackNeo');
+      if(!fb) return;
+      let finalTxt = '';
+      rec.onresult = (event) => {
+        let interim = '';
+        for(let i = event.resultIndex; i < event.results.length; i++){
+          const txt = event.results[i][0].transcript;
+          if(event.results[i].isFinal) finalTxt += txt + ' ';
+          else interim += txt;
+        }
+        fb.value = (fb.value ? fb.value + '\n' : '') + (finalTxt + interim).trim();
+      };
+      rec.onerror = (e) => console.warn('Dictation error', e);
+      rec.start();
+      alert('Dettatura avviata: parla ora (chiudi con pausa).');
+    };
+
+    // ===== OGGI / SCADUTI (vista operativa) =====
+    window.renderTodayView = () => {
+      const box = document.getElementById('todayList');
+      if(!box) return;
+      const now = new Date();
+      const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0);
+      const endDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23,59,59,999);
+
+      // Per Account: uso contattiView (solo miei). Per ADMIN: globalContatti.
+      const contattiSource = isCurrentAdmin() ? (globalContatti || []) : (contattiView || []);
+
+      // calcola per ogni neo l'ultimo contatto (nel perimetro)
+      const lastByNeo = {};
+      contattiSource.forEach(c => {
+        if(!c.neo_key) return;
+        const t = new Date(c.data_contatto || c.data_inserimento_lead || 0).getTime();
+        if(!lastByNeo[c.neo_key] || t > lastByNeo[c.neo_key].t) lastByNeo[c.neo_key] = {t, row:c};
+      });
+
+      const items = [];
+      let kpiToday=0, kpiOver=0, kpiNever=0;
+      (neoView || []).forEach(n => {
+        const k = n.firebaseKey;
+        const last = lastByNeo[k] ? lastByNeo[k].row : null;
+        const next = last && last.prossimo_contatto ? new Date(last.prossimo_contatto) : null;
+        if(!last) {
+          kpiNever++;
+          items.push({kind:'never', neo:n, last:null, next:null});
+          return;
+        }
+        if(next && !isNaN(next)){
+          if(next < startDay){
+            kpiOver++;
+            items.push({kind:'overdue', neo:n, last:last, next:next});
+          } else if(next >= startDay && next <= endDay){
+            kpiToday++;
+            items.push({kind:'today', neo:n, last:last, next:next});
+          }
+        }
+      });
+
+      
+      // filtro veloce per nome/numero (solo lista operativa)
+      const q = (document.getElementById('todayFilter')?.value || '').toString().trim().toLowerCase();
+      const filtered = q ? items.filter(it => {
+        const num = String(getField(it.neo, FIELD_ALIASES.num) || '').toLowerCase();
+        const nome = String(getField(it.neo, FIELD_ALIASES.COGNOME_E_NOME) || '').toLowerCase();
+        return num.includes(q) || nome.includes(q);
+      }) : items;
+
+      const rank = {overdue:0, today:1, never:2};
+      filtered.sort((a,b)=> (rank[a.kind]-rank[b.kind]) || ((a.next?.getTime()||0) - (b.next?.getTime()||0)));
+
+      const fmtDT = (d)=> d ? d.toLocaleString('it-IT') : '';
+      const esc = (s)=> escapeHtml(s || '');
+
+      document.getElementById('kpiToday').innerText = kpiToday;
+      document.getElementById('kpiOverdue').innerText = kpiOver;
+      document.getElementById('kpiNever').innerText = kpiNever;
+
+      if(filtered.length===0){
+        box.innerHTML = '<div class="text-muted">Nessuna attività per oggi o scaduta.</div>';
+        return;
+      }
+
+      box.innerHTML = filtered.map(it => {
+        const num = getField(it.neo, FIELD_ALIASES.num);
+        const nome = getField(it.neo, FIELD_ALIASES.COGNOME_E_NOME);
+        const tel = (getField(it.neo, FIELD_ALIASES.TELEFONO_1) || getField(it.neo, FIELD_ALIASES.TELEFONO_2) || '').toString().trim();
+        const em = (getField(it.neo, FIELD_ALIASES.EMAIL_1) || getField(it.neo, FIELD_ALIASES.EMAIL_2) || '').toString().trim();
+        const badge = it.kind==='overdue' ? '<span class="badge bg-danger">SCADUTO</span>' : (it.kind==='today' ? '<span class="badge bg-primary">OGGI</span>' : '<span class="badge bg-warning text-dark">MAI CONTATTATO</span>');
+        const nextTxt = it.next ? fmtDT(it.next) : '';
+        const lastTxt = it.last ? fmtDateIT(it.last.data_contatto) : '';
+        const fb1 = it.last ? (it.last.feedback_neo_notaio || it.last.feedback || '').toString().replace(/\s+/g,' ').trim() : '';
+        const fbShort = fb1.length > 140 ? fb1.slice(0,140) + '…' : fb1;
+
+        const telHtml = tel ? `<a class="small text-decoration-none" href="${esc(phoneHref(tel))}"><i class="bi bi-telephone-fill"></i> ${esc(cleanPhone(tel))}</a>` : `<span class="small text-muted"><i class="bi bi-telephone"></i> Tel: N/D</span>`;
+        const emHtml = em ? `<a class="small text-decoration-none" href="${esc(emailHref(em))}"><i class="bi bi-envelope-fill"></i> ${esc(cleanEmail(em))}</a>` : `<span class="small text-muted"><i class="bi bi-envelope"></i> Email: N/D</span>`;
+
+        const btnApri = `<button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('searchInput').value='${esc(`${num} - ${nome}`)}'; window.navigate('home'); setTimeout(()=>window.caricaSchedaNeo(),50);"><i class="bi bi-box-arrow-in-right"></i> Apri</button>`;
+
+        return `
+          <div class="border rounded p-2 mb-2 bg-light">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div style="min-width:0;">
+                <div class="fw-bold text-truncate">${esc(num)} - ${esc(nome)} ${badge}</div>
+                <div class="small text-muted">Ultimo contatto: ${esc(lastTxt || 'N/D')} ${it.next ? `| Next: <span class=\"fw-bold\">${esc(nextTxt)}</span>` : ''}</div>
+                <div class="d-flex flex-column gap-1 mt-1">
+                  ${telHtml}
+                  ${emHtml}
+                </div>
+                <div class="small mt-2" style="white-space:normal;">
+                  <span class="fw-bold text-primary">Ultimo feedback:</span>
+                  <span class="text-muted">${esc(fbShort || 'N/D')}</span>
+                </div>
+              </div>
+              <div style="white-space:nowrap;">${btnApri}</div>
+            </div>
+          </div>`;
+      }).join('');
+    };
+
+    // ===== ICS: Task (VTODO) =====
+    function buildICSTask({summary, description, dueLocal}){
+      const due = new Date(dueLocal);
+      if(isNaN(due)) throw new Error('Scadenza task non valida');
+      const dtDue = toICSDateTimeFromDate(due);
+      const dtStamp = toICSDateTimeFromDate(new Date());
+      const uid = `${Date.now()}-${Math.random().toString(16).slice(2)}@flow-manager-neonotai-task`;
+      const esc = (s) => (s ?? '').toString()
+        .replace(/\\/g,'\\\\')
+        .replace(/\n/g,'\\n')
+        .replace(/\r/g,'')
+        .replace(/,/g,'\\,')
+        .replace(/;/g,'\\;');
+      return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Flow Manager Neo Notai//IT',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VTODO',
+        `UID:${uid}`,
+        `DTSTAMP:${dtStamp}`,
+        `DUE:${dtDue}`,
+        `SUMMARY:${esc(summary)}`,
+        `DESCRIPTION:${esc(description)}`,
+        'STATUS:NEEDS-ACTION',
+        'PRIORITY:5',
+        'END:VTODO',
+        'END:VCALENDAR'
+      ].join('\r\n');
+    }
+
+// ===== Outlook reminder (.ics) =====
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function toICSDateTimeFromDate(d){
+      if(!(d instanceof Date) || isNaN(d)) throw new Error('Data/Ora non valida');
+      const y = d.getUTCFullYear();
+      const mo = pad2(d.getUTCMonth()+1);
+      const da = pad2(d.getUTCDate());
+      const h = pad2(d.getUTCHours());
+      const mi = pad2(d.getUTCMinutes());
+      const s = pad2(d.getUTCSeconds());
+      return `${y}${mo}${da}T${h}${mi}${s}Z`;
+    }
+    
+
+    // Raccoglie il contenuto della sezione "DATI CONTATTO DA AGGIORNARE" (formUpdateNeo)
+    function buildUpdateFormText(){
+      const fields = [
+        ['CENTRO_DESTINAZIONE', 'f_CENTRO_DESTINAZIONE'],
+        ['Centro_Partenza', 'f_Centro_Partenza'],
+        ['Account_Riferimento', 'f_Account_Riferimento'],
+        ['Account_zona', 'f_Account_zona'],
+        ['Data_orale', 'f_Data_orale'],
+        ['città_dove_si_trova', 'f_città_dove_si_trova'],
+        ['REGIONE', 'f_REGIONE'],
+        ['Via_dove_si_trova', 'f_Via_dove_si_trova'],
+        ['PRESSO_STUDIO_NOTARILE', 'f_PRESSO_STUDIO_NOTARILE'],
+        ['SOFTWARE_in_uso', 'f_SOFTWARE_in_uso'],
+        ['SEDE_PREFERITA', 'f_SEDE_PREFERITA'],
+        ['ORIENTAMENTO', 'f_ORIENTAMENTO'],
+        ['TELEFONO_1', 'f_TELEFONO_1'],
+        ['TELEFONO_2', 'f_TELEFONO_2'],
+        ['E-MAIL_1', 'f_E_MAIL_1'],
+        ['E-MAIL_2', 'f_E_MAIL_2'],
+        ['Contatto_LINKEDIN', 'f_Contatto_LINKEDIN'],
+        ['ISCRIZIONE_SITO_NEONOTAI', 'f_ISCRIZIONE_SITO_NEONOTAI'],
+        ['ISCRIZIONE_NOTAIONEXT_DAY', 'f_ISCRIZIONE_NOTAIONEXT_DAY'],
+        ['COLLEGATO_AL_NOTAIONEXT_DAY', 'f_COLLEGATO_AL_NOTAIONEXT_DAY'],
+        ['ISCRIZION_TAPPE_LIVE_TOUR', 'f_ISCRIZION_TAPPE_LIVE_TOUR'],
+        ['PARTECIPAZIONE_LIVE_TOUR', 'f_PARTECIPAZIONE_LIVE_TOUR'],
+        ['POSSIBILE_TESTIMONIAL', 'f_POSSIBILE_TESTIMONIAL'],
+        ['Notai_in_contatto', 'f_Notai_in_contatto'],
+        ['%_scelta_OASISTEMI', 'f__perc_scelta_OASISTEMI'],
+        ['Ordine_in_Area_Partner_SI-NO', 'f_Ordine_in_Area_Partner'],
+        ['SW_SCELTO', 'f_SW_SCELTO'],
+        ['AREA_NNX_APERTA_SI-NO', 'f_AREA_NNX_APERTA'],
+        ['SEDE_ASSEGNATA', 'f_SEDE_ASSEGNATA'],
+        ['MOTIVO_NON_SCELTO_NNX', 'f_MOTIVO_NON_SCELTO_NNX'],
+      ];
+      const lines = [];
+      for(const [label, id] of fields){
+        const el = document.getElementById(id);
+        if(!el) continue;
+        const val = (el.value ?? '').toString().trim();
+        if(val) lines.push(`${label}: ${val}`);
+      }
+      return lines.length ? lines.join('\n') : '(nessun dato valorizzato)';
+    }
+
+    function buildICSReminder({summary, description, startLocal, durationMinutes=30, alarmMinutes=30}){
+      const start = new Date(startLocal);
+      if(isNaN(start)) throw new Error('Data/Ora prossimo contatto non valida');
+      const end = new Date(start.getTime());
+      end.setMinutes(end.getMinutes() + (parseInt(durationMinutes,10) || 30));
+      const dtStart = toICSDateTimeFromDate(start);
+      const dtEnd = toICSDateTimeFromDate(end);
+      const dtStamp = toICSDateTimeFromDate(new Date());
+      const uid = `${Date.now()}-${Math.random().toString(16).slice(2)}@flow-manager-neonotai`;
+      const esc = (s) => (s ?? '').toString()
+        .replace(/\\/g,'\\\\')
+        .replace(/\n/g,'\\n')
+        .replace(/\r/g,'')
+        .replace(/,/g,'\\,')
+        .replace(/;/g,'\\;');
+      return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Flow Manager Neo Notai//IT',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${dtStamp}`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`,
+        `SUMMARY:${esc(summary)}`,
+        `DESCRIPTION:${esc(description)}`,
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        `DESCRIPTION:${esc('Promemoria follow-up Neo Notaio')}`,
+        `TRIGGER:-PT${parseInt(alarmMinutes,10) || 30}M`,
+        'END:VALARM',
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n');
+    }
+    function downloadTextFile(content, filename, mime){
+      const blob = new Blob([content], { type: mime || 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+    }
+
+    // ===== Import/Export/Clear (Admin) =====
+    window.clearTable = (node) => {
+      if(confirm(`Sei sicuro di voler SVUOTARE la tabella ${node.toUpperCase()}?`))
+        set(ref(db, node), null).then(()=> alert('Tabella svuotata!'));
+    };
+
+    window.importExcel = (inputId, node) => {
+      const file = document.getElementById(inputId).files[0];
+      if(!file) return alert('Seleziona un file Excel.');
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const workbook = XLSX.read(e.target.result, { type: 'binary' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+        if(jsonData.length === 0) return alert('File vuoto o non valido.');
+        const nodeRef = ref(db, node);
+        jsonData.forEach(row => push(nodeRef, row));
+        alert('Importazione completata!');
+      };
+      reader.readAsBinaryString(file);
+    };
+
+    window.exportExcel = (node) => {
+      let data = [];
+      let name = '';
+      if(node === 'neo_notai'){
+        data = globalNeoNotai.map(({firebaseKey, ...rest}) => rest);
+        name = 'NeoNotai.xlsx';
+      } else if(node === 'contatti'){
+        data = globalContatti.map(({firebaseKey, ...rest}) => rest);
+        name = 'Contatti.xlsx';
+      }
+      if(data.length===0) return alert('Nessun dato da esportare.');
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, node);
+      XLSX.writeFile(wb, name);
+    };
+
+    const usersRef = ref(db, 'users');
+    onValue(usersRef, (snap) => {
+      document.getElementById('criticalErrorAlert').style.display = 'none';
+      globalUsers = snap.val() || {};
+      usersLoaded = true;
+      initDrops();
+      if(pendingAuthUser) checkUserMapping(pendingAuthUser);
+    }, (error) => {
+      console.error('Errore lettura Users:', error);
+      document.getElementById('criticalErrorAlert').style.display = 'block';
+    });
+
+    onValue(ref(db,'/'), (snap) => {
+      const data = snap.val() || {};
+      globalNeoNotai = data.neo_notai ? Object.entries(data.neo_notai).map(([k,v])=>({...v, firebaseKey:k})) : [];
+      globalContatti = data.contatti ? Object.entries(data.contatti).map(([k,v])=>({...v, firebaseKey:k})) : [];
+      document.getElementById('dbStatus').innerText = `Online: ${globalNeoNotai.length} Neo, ${globalContatti.length} Contatti. Ruolo: ${(currentUserRole||'N/D')}`;
+      if(currentUserEmail){
+        rebuildViews();
+        window.renderElencoNeo();
+        window.renderRegistroContatti();
+        initDrops();
+        if(document.getElementById('cardContattiNeo')?.style.display === 'block') window.refreshStoricoContatti();
+      }
+    });
+
+  </script>
+
+  <!-- Modal: Azioni telefono (Chiama / WhatsApp) -->
+  <div class="modal fade" id="modalPhoneActions" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold"><i class="bi bi-telephone"></i> Azioni contatto</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="fw-bold" id="phoneModalNeoName">Neo Notaio</div>
+          <div class="text-muted small" id="phoneModalPhone">Telefono</div>
+          <hr/>
+          <div class="d-grid gap-2">
+            <a class="btn btn-success" id="btnCallNow" href="#"><i class="bi bi-telephone-fill"></i> Chiama ora</a>
+            <a class="btn btn-success" style="background:#25D366;border-color:#25D366;" id="btnWhatsApp" href="#" target="_blank" rel="noopener">
+              <i class="bi bi-whatsapp"></i> Invia WhatsApp
+            </a>
+          </div>
+          <div class="small text-muted mt-2">Il testo WhatsApp è personalizzato per Account e Neo Notaio.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
