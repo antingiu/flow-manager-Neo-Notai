@@ -164,6 +164,7 @@
         <li><a class="nav-link" id="nav-contatti" onclick="window.navigate('contatti')"><i class="bi bi-telephone"></i> Registro Contatti</a></li>
         <li><a class="nav-link" id="nav-elenco" onclick="window.navigate('elenco')"><i class="bi bi-people"></i> Elenco Neo Notai</a></li>
         <li><a class="nav-link" id="nav-statistiche" onclick="window.navigate('statistiche')"><i class="bi bi-geo-alt-fill"></i> Statistiche Mappa</a></li>
+ <li><a class="nav-link" id="nav-impostazioni" onclick="window.navigate('impostazioni')"><i class="bi bi-gear"></i> Impostazioni</a></li>
 
         <li class="mt-4 border-top border-secondary pt-2" id="nav-item-strumenti" style="display:none;">
           <a class="nav-link text-warning" id="nav-strumenti" onclick="window.navigate('strumenti')"><i class="bi bi-database-gear"></i> Strumenti DB</a>
@@ -205,6 +206,13 @@
             <div class="excel-view-container">
               <table class="table mb-0 excel-table" id="tabellaSchedaNeo"></table>
             </div>
+  <div class="card-footer bg-light">
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-sm btn-success" onclick="window.openContactFromCurrentNeo()"><i class="bi bi-telephone"></i> Contatta (Chiama/WA/Email)</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.navigate('impostazioni')"><i class="bi bi-gear"></i> Modifica messaggi</button>
+    </div>
+  </div>
+
           </div>
         </div>
 
@@ -214,7 +222,18 @@
             <span class="small">Aggiornamento diretto su tabella <b>Neo Notai</b></span>
           </div>
           <div class="card-body bg-light">
-            <form id="formUpdateNeo" onsubmit="event.preventDefault(); window.salvaAggiornamentiNeo();">
+            <form id="formUpdateNeo" onsubmit="event.preventDefault(); 
+
+// Apri la modal contatto dalla scheda corrente
+window.openContactFromCurrentNeo = () => {
+  const key = document.getElementById('neoKey')?.value;
+  if(!key) return alert('Carica una scheda Neo Notaio.');
+  const neo = (neoView||[]).find(n=>n.firebaseKey===key) || (globalNeoNotai||[]).find(n=>n.firebaseKey===key);
+  if(!neo) return alert('Neo Notaio non trovato.');
+  const tel = (getField(neo, FIELD_ALIASES.TELEFONO_1) || getField(neo, FIELD_ALIASES.TELEFONO_2) || '').toString();
+  window.openPhoneActions(encodeURIComponent(tel), key);
+};
+window.salvaAggiornamentiNeo();">
               <input type="hidden" id="neoKey" />
               <div class="row g-2">
                 <div class="col-md-4 col-12">
@@ -561,7 +580,93 @@
         </div>
       </div>
 
-      <div id="view-strumenti" class="view-section">
+      
+
+ <div id="view-impostazioni" class="view-section">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="bi bi-gear"></i> Impostazioni messaggi</h3>
+    <div class="small text-muted">Impostazioni personali per WhatsApp / Email</div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6 col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-success text-white fw-bold"><i class="bi bi-whatsapp"></i> Messaggio WhatsApp (template)</div>
+        <div class="card-body">
+          <div class="small text-muted mb-2">Usa i placeholder in formato <code>{{NOME}}</code>. Verranno sostituiti con i dati della scheda Neo Notaio.</div>
+          <textarea id="setWaTemplate" class="form-control" rows="8" placeholder="Es. Ciao {{NOME}}, sono {{ACCOUNT}}..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6 col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white fw-bold"><i class="bi bi-envelope"></i> Email (oggetto + template)</div>
+        <div class="card-body">
+          <label class="small fw-bold">Oggetto</label>
+          <input id="setMailSubject" class="form-control mb-2" placeholder="Es. Neo Notai: contatto {{NOME}} ({{NUM}})">
+          <label class="small fw-bold">Testo</label>
+          <textarea id="setMailTemplate" class="form-control" rows="7" placeholder="Buongiorno {{NOME}}, ..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-person-lines-fill"></i> Testo account (firma / note personali)</div>
+        <div class="card-body">
+          <div class="small text-muted mb-2">Questo testo verrà aggiunto in fondo al messaggio WhatsApp e alla Email.</div>
+          <textarea id="setAccountText" class="form-control" rows="4" placeholder="Es. Giuseppe Savino
+Wolters Kluwer
+Cell: ..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white fw-bold"><i class="bi bi-braces"></i> Placeholder + Anteprima</div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="badge bg-light text-dark border">{{NOME}}</span>
+            <span class="badge bg-light text-dark border">{{NUM}}</span>
+            <span class="badge bg-light text-dark border">{{REGIONE}}</span>
+            <span class="badge bg-light text-dark border">{{CITTA}}</span>
+            <span class="badge bg-light text-dark border">{{VIA}}</span>
+            <span class="badge bg-light text-dark border">{{TEL1}}</span>
+            <span class="badge bg-light text-dark border">{{TEL2}}</span>
+            <span class="badge bg-light text-dark border">{{EMAIL1}}</span>
+            <span class="badge bg-light text-dark border">{{EMAIL2}}</span>
+            <span class="badge bg-light text-dark border">{{ACCOUNT}}</span>
+            <span class="badge bg-light text-dark border">{{DATA}}</span>
+          </div>
+
+          <label class="small fw-bold">Anteprima su Neo Notaio</label>
+          <select id="setPreviewNeo" class="form-select mb-3"></select>
+
+          <div class="row g-2">
+            <div class="col-lg-6">
+              <div class="small fw-bold text-success">Anteprima WhatsApp</div>
+              <pre id="previewWa" class="bg-light border rounded p-2" style="white-space:pre-wrap; min-height:140px;"></pre>
+            </div>
+            <div class="col-lg-6">
+              <div class="small fw-bold text-primary">Anteprima Email</div>
+              <pre id="previewMail" class="bg-light border rounded p-2" style="white-space:pre-wrap; min-height:140px;"></pre>
+            </div>
+          </div>
+
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-primary fw-bold" onclick="window.saveUserSettings()"><i class="bi bi-save"></i> Salva</button>
+            <button class="btn btn-outline-secondary" onclick="window.resetUserSettings()">Ripristina default</button>
+            <div class="ms-auto small text-muted align-self-center" id="settingsStatus"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+ </div>
+<div id="view-strumenti" class="view-section">
         <h3 class="mb-4 text-warning"><i class="bi bi-tools"></i> Strumenti Amministratore</h3>
 
         <div class="row mb-4">
@@ -823,7 +928,200 @@
       return em ? `mailto:${encodeURIComponent(em)}` : '';
     };
 
-  // ===== WhatsApp: template per Account + messaggio personalizzato per Neo Notaio =====
+  
+// ===== Impostazioni per utente: Template WA + Email + Testo account (firma) =====
+// Salvataggio: 1) localStorage (sempre)  2) Firebase RTDB (user_settings/{uid}) se permesso
+let currentUserUid = '';
+let userSettings = {
+  wa_template: '',
+  mail_subject: '',
+  mail_template: '',
+  account_text: ''
+};
+const SETTINGS_DEFAULTS = {
+  wa_template: "Ciao {{NOME}}, sono {{ACCOUNT}}. Ti contatto in merito al percorso Neo Notai (rif. {{NUM}}). Possiamo sentirci?",
+  mail_subject: "Neo Notai – contatto {{NOME}} ({{NUM}})",
+  mail_template: "Buongiorno {{NOME}},\n\nsono {{ACCOUNT}} di Wolters Kluwer. La contatto in merito al percorso Neo Notai (rif. {{NUM}}).\n\nDati:\n- Regione: {{REGIONE}}\n- Città: {{CITTA}}\n- Via: {{VIA}}\n- Tel: {{TEL1}}\n\nResto a disposizione per una breve call.\n\nCordiali saluti,\n{{ACCOUNT}}",
+  account_text: ""
+};
+const _todayIt = () => new Date().toLocaleDateString('it-IT');
+const _settingsLocalKey = () => `neo_settings_${currentUserUid || (currentUserEmail||'').toLowerCase()}`;
+
+const getNeoDataForTemplate = (neo) => {
+  // neo = record neo_notai
+  const nome = (getField(neo, FIELD_ALIASES.COGNOME_E_NOME) ?? '').toString();
+  const num = (getField(neo, FIELD_ALIASES.num) ?? '').toString();
+  const reg = (getField(neo, FIELD_ALIASES.REGIONE) ?? '').toString();
+  const citta = (getField(neo, FIELD_ALIASES.citta) ?? '').toString();
+  const via = (getField(neo, FIELD_ALIASES.via) ?? '').toString();
+  const tel1 = (getField(neo, FIELD_ALIASES.TELEFONO_1) ?? '').toString();
+  const tel2 = (getField(neo, FIELD_ALIASES.TELEFONO_2) ?? '').toString();
+  const em1 = (getField(neo, FIELD_ALIASES.EMAIL_1) ?? '').toString();
+  const em2 = (getField(neo, FIELD_ALIASES.EMAIL_2) ?? '').toString();
+  const acc = _base(currentAccountName ?? accountFromEmail(currentUserEmail));
+  return {
+    NOME: nome,
+    NUM: num,
+    REGIONE: reg,
+    CITTA: citta,
+    VIA: via,
+    TEL1: tel1,
+    TEL2: tel2,
+    EMAIL1: em1,
+    EMAIL2: em2,
+    ACCOUNT: acc,
+    DATA: _todayIt()
+  };
+};
+
+const applyTpl = (tpl, map) => {
+  // usa {{PLACEHOLDER}}
+  return (tpl ?? '').toString().replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (m, p1) => {
+    const k = (p1 || '').toString().toUpperCase();
+    return (map && map[k] != null) ? String(map[k]) : '';
+  });
+};
+
+const buildMsg = (type, neo) => {
+  const data = getNeoDataForTemplate(neo);
+  const base = (type === 'MAIL') ? (userSettings.mail_template || SETTINGS_DEFAULTS.mail_template) : (userSettings.wa_template || SETTINGS_DEFAULTS.wa_template);
+  const merged = applyTpl(base, data).trim();
+  const tail = (userSettings.account_text || '').trim();
+  return tail ? (merged + "\n\n" + tail) : merged;
+};
+
+const buildMailSubject = (neo) => {
+  const data = getNeoDataForTemplate(neo);
+  const subj = (userSettings.mail_subject || SETTINGS_DEFAULTS.mail_subject);
+  return applyTpl(subj, data).trim();
+};
+
+window.loadUserSettings = () => {
+  userSettings = { ...SETTINGS_DEFAULTS };
+  // localStorage
+  try {
+    const raw = localStorage.getItem(_settingsLocalKey());
+    if(raw) userSettings = { ...userSettings, ...JSON.parse(raw) };
+  } catch(e) { console.warn('Settings localStorage read fail', e); }
+
+  // Firebase (opzionale)
+  if(currentUserUid){
+    const sref = ref(db, `user_settings/${currentUserUid}`);
+    onValue(sref, (snap) => {
+      const v = snap.val();
+      if(v) {
+        userSettings = { ...userSettings, ...v };
+        try { localStorage.setItem(_settingsLocalKey(), JSON.stringify(userSettings)); } catch(e) {}
+      }
+      if(document.getElementById('view-impostazioni')?.classList.contains('active-view')) {
+        window.renderSettingsView();
+      }
+    }, (err) => {
+      console.warn('user_settings non leggibili (ok se non configurate):', err);
+    });
+  }
+
+  // Back-compat: se l'admin ha definito wa_template nella tabella users, usalo come default per WA.
+  // (Ma lascia comunque all'utente la possibilità di personalizzare via Impostazioni)
+  try {
+    const email = (currentUserEmail||'').toLowerCase();
+    const k = Object.keys(globalUsers || {}).find(x => ((globalUsers[x].u || '').toLowerCase() === email));
+    if(k && globalUsers[k] && globalUsers[k].wa_template && !(userSettings.wa_template || '').trim()) {
+      userSettings.wa_template = String(globalUsers[k].wa_template);
+    }
+  } catch(e) {}
+};
+
+window.saveUserSettings = () => {
+  userSettings.wa_template = (document.getElementById('setWaTemplate')?.value ?? '').toString();
+  userSettings.mail_subject = (document.getElementById('setMailSubject')?.value ?? '').toString();
+  userSettings.mail_template = (document.getElementById('setMailTemplate')?.value ?? '').toString();
+  userSettings.account_text = (document.getElementById('setAccountText')?.value ?? '').toString();
+
+  try { localStorage.setItem(_settingsLocalKey(), JSON.stringify(userSettings)); } catch(e) {}
+
+  const st = document.getElementById('settingsStatus');
+  const done = (msg) => { if(st) st.textContent = msg; setTimeout(()=>{ if(st) st.textContent=''; }, 2000); };
+
+  if(currentUserUid){
+    update(ref(db, `user_settings/${currentUserUid}`), userSettings)
+      .then(() => { done('Salvato.'); window.updateSettingsPreview(); })
+      .catch((e) => { console.warn('save settings firebase fail', e); done('Salvato in locale (Firebase non disponibile).'); window.updateSettingsPreview(); });
+  } else {
+    done('Salvato in locale.');
+    window.updateSettingsPreview();
+  }
+};
+
+window.resetUserSettings = () => {
+  userSettings = { ...SETTINGS_DEFAULTS };
+  try { localStorage.setItem(_settingsLocalKey(), JSON.stringify(userSettings)); } catch(e) {}
+  window.renderSettingsView();
+};
+
+window.renderSettingsView = () => {
+  const wa = document.getElementById('setWaTemplate');
+  const ms = document.getElementById('setMailSubject');
+  const mt = document.getElementById('setMailTemplate');
+  const at = document.getElementById('setAccountText');
+  if(!wa || !ms || !mt || !at) return;
+
+  wa.value = userSettings.wa_template ?? '';
+  ms.value = userSettings.mail_subject ?? '';
+  mt.value = userSettings.mail_template ?? '';
+  at.value = userSettings.account_text ?? '';
+
+  const sel = document.getElementById('setPreviewNeo');
+  if(sel){
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- Seleziona --</option>';
+    (neoView || []).slice().sort((a,b)=> String(getField(a, FIELD_ALIASES.COGNOME_E_NOME)||'').localeCompare(String(getField(b, FIELD_ALIASES.COGNOME_E_NOME)||''), 'it', {sensitivity:'base'}))
+      .forEach(n => {
+        const key = n.firebaseKey;
+        const num = getField(n, FIELD_ALIASES.num);
+        const nome = getField(n, FIELD_ALIASES.COGNOME_E_NOME);
+        sel.innerHTML += `<option value="${escapeHtml(key)}">${escapeHtml(num||'')} - ${escapeHtml(nome||'')}</option>`;
+      });
+    if(current) sel.value = current;
+    if(!sel.value && sel.options.length>1) sel.selectedIndex = 1;
+    sel.onchange = () => window.updateSettingsPreview();
+  }
+
+  window.updateSettingsPreview();
+};
+
+window.updateSettingsPreview = () => {
+  const sel = document.getElementById('setPreviewNeo');
+  const key = sel ? sel.value : '';
+  const neo = (neoView || []).find(n => n.firebaseKey === key) || (globalNeoNotai || []).find(n => n.firebaseKey === key) || null;
+  const pwa = document.getElementById('previewWa');
+  const pml = document.getElementById('previewMail');
+  if(!neo){
+    if(pwa) pwa.textContent = '';
+    if(pml) pml.textContent = '';
+    return;
+  }
+  if(pwa) pwa.textContent = buildMsg('WA', neo);
+  if(pml) pml.textContent = buildMsg('MAIL', neo);
+};
+
+// Clipboard helper
+window.copyPhoneModalMsg = async () => {
+  const txt = document.getElementById('phoneModalMsg')?.textContent ?? '';
+  if(!txt) return;
+  try {
+    await navigator.clipboard.writeText(txt);
+  } catch(e) {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+};
+
+// ===== WhatsApp: template per Account + messaggio personalizzato per Neo Notaio =====
   const DEFAULT_WA_TEMPLATE = "Ciao {NOME}, sono {ACCOUNT}. Ti contatto in merito al percorso Neo Notai (rif. {NUM}). Possiamo sentirci?";
 
   const getWATemplateForCurrentUser = () => {
@@ -848,44 +1146,65 @@
   };
 
   window.openPhoneActions = (telEncoded, neoKey) => {
-    const tel = decodeURIComponent(telEncoded || '').toString();
-    const neo = (neoView || []).find(n => n.firebaseKey === neoKey) || (globalNeoNotai || []).find(n => n.firebaseKey === neoKey) || null;
-    const nome = neo ? (getField(neo, FIELD_ALIASES.COGNOME_E_NOME) || '') : '';
-    const num = neo ? (getField(neo, FIELD_ALIASES.num) || '') : '';
-    const reg = neo ? (getField(neo, FIELD_ALIASES.REGIONE) || '') : '';
-    const citta = neo ? (getField(neo, FIELD_ALIASES.citta) || '') : '';
-    const account = _base(currentAccountName || accountFromEmail(currentUserEmail));
+ const tel = decodeURIComponent(telEncoded || '').toString().trim();
+ const neo = (neoView || []).find(n => n.firebaseKey === neoKey) || (globalNeoNotai || []).find(n => n.firebaseKey === neoKey) || null;
+ if(!neo) return alert('Neo Notaio non trovato.');
 
-    const tpl = getWATemplateForCurrentUser();
-    const msg = applyTemplate(tpl, {
-      NOME: (nome || '').toString(),
-      NUM: (num || '').toString(),
-      REGIONE: (reg || '').toString(),
-      CITTA: (citta || '').toString(),
-      ACCOUNT: (account || '').toString()
-    }).trim();
+ const nome = (getField(neo, FIELD_ALIASES.COGNOME_E_NOME) || '').toString();
+ const tel1 = (getField(neo, FIELD_ALIASES.TELEFONO_1) || '').toString();
+ const tel2 = (getField(neo, FIELD_ALIASES.TELEFONO_2) || '').toString();
+ const email1 = (getField(neo, FIELD_ALIASES.EMAIL_1) || '').toString();
+ const email2 = (getField(neo, FIELD_ALIASES.EMAIL_2) || '').toString();
+ const telEff = (tel || tel1 || tel2 || '').toString().trim();
+ const emEff = (email1 || email2 || '').toString().trim();
 
-    const call = phoneHref(tel);
-    const wa = whatsappHref(tel, msg);
+ // messaggi
+ const msgWA = buildMsg('WA', neo);
+ const msgMAIL = buildMsg('MAIL', neo);
+ const subject = buildMailSubject(neo);
 
-    const nameEl = document.getElementById('phoneModalNeoName');
-    const phoneEl = document.getElementById('phoneModalPhone');
-    const btnCall = document.getElementById('btnCallNow');
-    const btnWa = document.getElementById('btnWhatsApp');
+ const call = phoneHref(telEff);
+ const wa = whatsappHref(telEff, msgWA);
+ const mail = emEff ? `mailto:${encodeURIComponent(cleanEmail(emEff))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msgMAIL)}` : '';
 
-    if(nameEl) nameEl.textContent = nome ? `${nome}` : 'Neo Notaio';
-    if(phoneEl) phoneEl.textContent = tel ? `Tel: ${tel}` : 'Telefono non disponibile';
-    if(btnCall) btnCall.href = call || '#';
-    if(btnWa) btnWa.href = wa || '#';
+ const nameEl = document.getElementById('phoneModalNeoName');
+ const phoneEl = document.getElementById('phoneModalPhone');
+ const emailEl = document.getElementById('phoneModalEmail');
+ const msgEl = document.getElementById('phoneModalMsg');
+ const btnCall = document.getElementById('btnCallNow');
+ const btnWa = document.getElementById('btnWhatsApp');
+ const btnMail = document.getElementById('btnEmailNow');
 
-    if(!call && btnCall) btnCall.classList.add('disabled');
-    else if(btnCall) btnCall.classList.remove('disabled');
+ if(nameEl) nameEl.textContent = nome || 'Neo Notaio';
+ if(phoneEl) phoneEl.textContent = telEff ? `Tel: ${telEff}` : 'Telefono non disponibile';
+ if(emailEl) emailEl.textContent = emEff ? `Email: ${emEff}` : 'Email non disponibile';
+ if(msgEl) msgEl.textContent = msgWA;
 
-    if(!wa && btnWa) btnWa.classList.add('disabled');
-    else if(btnWa) btnWa.classList.remove('disabled');
+ if(btnCall) btnCall.href = call || '#';
+ if(btnWa) btnWa.href = wa || '#';
+ if(btnMail) btnMail.href = mail || '#';
 
-    new bootstrap.Modal(document.getElementById('modalPhoneActions')).show();
-  };
+ // abilita/disabilita
+ const setDisabled = (el, dis) => { if(!el) return; if(dis) el.classList.add('disabled'); else el.classList.remove('disabled'); };
+ setDisabled(btnCall, !call);
+ setDisabled(btnWa, !wa);
+ setDisabled(btnMail, !mail);
+
+ // quando clicchi Email mostra preview email
+ if(btnMail){
+   btnMail.onclick = (ev) => {
+     if(!mail) { ev.preventDefault(); return false; }
+     if(msgEl) msgEl.textContent = msgMAIL;
+     // lascia che mailto si apra
+     return true;
+   };
+ }
+ if(btnWa){
+   btnWa.onclick = () => { if(msgEl) msgEl.textContent = msgWA; };
+ }
+
+ new bootstrap.Modal(document.getElementById('modalPhoneActions')).show();
+};
 
 
     const fmtDateIT = (isoDate) => {
@@ -946,6 +1265,7 @@
       if(nav) nav.classList.add('active');
       if(window.innerWidth < 992) window.toggleSidebar();
       if(view === 'oggi') window.renderTodayView();
+ if(view === 'impostazioni') window.renderSettingsView();
       if(view === 'statistiche') window.initStatistiche();
       if(view === 'elenco') window.renderElencoNeo();
       if(view === 'contatti') window.renderRegistroContatti();
@@ -989,6 +1309,7 @@
 
     async function checkUserMapping(firebaseUser){
       const email = (firebaseUser.email ?? '').toLowerCase();
+ currentUserUid = firebaseUser.uid || '';
       // Custom claims fallback presente ma non usato per l'opzione B.
       try {
         const tokenRes = await firebaseUser.getIdTokenResult(true);
@@ -1028,6 +1349,7 @@
     }
 
     function startApp(){
+ window.loadUserSettings();
       document.getElementById('loginOverlay').style.display = 'none';
       document.getElementById('mainApp').style.display = 'flex';
       document.getElementById('nav-item-strumenti').style.display = isCurrentAdmin() ? 'block' : 'none';
@@ -1554,7 +1876,7 @@
             <td>${escapeHtml(citta)}</td>
             <td>${escapeHtml(via)}</td>
             <td>${escapeHtml(acc)}</td>
-            <td>${escapeHtml(tel)}</td>
+            <td>${tel ? `<button type="button" class="btn btn-link btn-sm p-0" onclick="event.stopPropagation(); window.openPhoneActions(encodeURIComponent(tel),'${n.firebaseKey}')"><i class="bi bi-telephone-fill"></i> ${escapeHtml(tel)}</button>` : `<span class="text-muted">N/D</span>`}</td>
             <td>${escapeHtml(em)}</td>
           </tr>`;
       }).join('');
@@ -2010,29 +2332,36 @@
 
   </script>
 
-  <!-- Modal: Azioni telefono (Chiama / WhatsApp) -->
-  <div class="modal fade" id="modalPhoneActions" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header bg-dark text-white">
-          <h5 class="modal-title fw-bold"><i class="bi bi-telephone"></i> Azioni contatto</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="fw-bold" id="phoneModalNeoName">Neo Notaio</div>
-          <div class="text-muted small" id="phoneModalPhone">Telefono</div>
-          <hr/>
-          <div class="d-grid gap-2">
-            <a class="btn btn-success" id="btnCallNow" href="#"><i class="bi bi-telephone-fill"></i> Chiama ora</a>
-            <a class="btn btn-success" style="background:#25D366;border-color:#25D366;" id="btnWhatsApp" href="#" target="_blank" rel="noopener">
-              <i class="bi bi-whatsapp"></i> Invia WhatsApp
-            </a>
-          </div>
-          <div class="small text-muted mt-2">Il testo WhatsApp è personalizzato per Account e Neo Notaio.</div>
-        </div>
-      </div>
+  
+ <!-- Modal: Azioni contatto (Chiama / WhatsApp / Email) -->
+ <div class="modal fade" id="modalPhoneActions" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+   <div class="modal-content">
+    <div class="modal-header bg-dark text-white">
+     <h5 class="modal-title fw-bold"><i class="bi bi-telephone"></i> Contatta Neo Notaio</h5>
+     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
+    <div class="modal-body">
+      <div class="fw-bold" id="phoneModalNeoName">Neo Notaio</div>
+      <div class="text-muted small" id="phoneModalPhone">Telefono</div>
+      <div class="text-muted small" id="phoneModalEmail">Email</div>
+      <hr/>
+      <div class="small fw-bold mb-1">Messaggio (da Impostazioni)</div>
+      <pre id="phoneModalMsg" class="bg-light border rounded p-2" style="white-space:pre-wrap; min-height:120px;"></pre>
+      <div class="d-grid gap-2 mt-2">
+        <a class="btn btn-warning" id="btnCallNow" href="#"><i class="bi bi-telephone-fill"></i> Chiama</a>
+        <a class="btn btn-success" style="background:#25D366;border-color:#25D366;" id="btnWhatsApp" href="#" target="_blank" rel="noopener">
+          <i class="bi bi-whatsapp"></i> Invia WhatsApp
+        </a>
+        <a class="btn btn-primary" id="btnEmailNow" href="#"><i class="bi bi-envelope-fill"></i> Invia Email</a>
+        <button type="button" class="btn btn-outline-secondary" onclick="window.copyPhoneModalMsg()"><i class="bi bi-clipboard"></i> Copia testo</button>
+      </div>
+      <div class="small text-muted mt-2">I messaggi sono personalizzati per Account e Neo Notaio (placeholder).</div>
+    </div>
+   </div>
   </div>
+ </div>
+
 
 </body>
 </html>
